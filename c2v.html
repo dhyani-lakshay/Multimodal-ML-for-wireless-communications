@@ -1,0 +1,896 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>C2V: Optical Occlusion & RF Reconstruction</title>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <style>
+    :root {
+      --bg: #070b14;
+      --card-bg: #0f172a;
+      --card-border: #1e293d;
+      --primary-cyan: #00f0ff;
+      --secondary-amber: #ffb703;
+      --accent-green: #10b981;
+      --danger-red: #ff0055;
+      --purple: #c084fc;
+      --text: #f8fafc;
+      --text-muted: #94a3b8;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
+    body { background-color: var(--bg); color: var(--text); padding: 18px; display: flex; justify-content: center; }
+
+    .wrapper {
+      width: 100%;
+      max-width: 1140px;
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+    }
+
+    header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding-bottom: 10px;
+      border-bottom: 1px solid var(--card-border);
+    }
+    header h1 { font-size: 20px; font-weight: 700; color: #fff; }
+    header p { font-size: 13px; color: var(--text-muted); margin-top: 2px; }
+    .badge {
+      font-size: 11px;
+      padding: 4px 10px;
+      border-radius: 9999px;
+      font-weight: 600;
+      background: rgba(192, 132, 252, 0.15);
+      color: var(--purple);
+      border: 1px solid rgba(192, 132, 252, 0.35);
+    }
+
+    /* 4-Stage Pipeline Bar */
+    .pipeline-bar {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 10px;
+    }
+    .pipe-step {
+      background: var(--card-bg);
+      border: 1px solid var(--card-border);
+      border-radius: 8px;
+      padding: 10px 12px;
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+      transition: all 0.2s ease;
+    }
+    .pipe-step.active {
+      border-color: var(--purple);
+      box-shadow: 0 0 14px rgba(192, 132, 252, 0.25);
+    }
+    .step-num { font-size: 10px; color: var(--text-muted); font-weight: 700; text-transform: uppercase; }
+    .step-name { font-size: 13px; font-weight: 600; color: #fff; }
+    .step-desc { font-size: 11px; color: var(--text-muted); }
+
+    .main-grid {
+      display: grid;
+      grid-template-columns: 1fr 340px;
+      gap: 14px;
+    }
+    @media (max-width: 920px) {
+      .main-grid { grid-template-columns: 1fr; }
+    }
+
+    .card {
+      background: var(--card-bg);
+      border: 1px solid var(--card-border);
+      border-radius: 10px;
+      padding: 14px;
+      display: flex;
+      flex-direction: column;
+    }
+    .card-title {
+      font-size: 12px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.6px;
+      color: var(--text-muted);
+      margin-bottom: 10px;
+      display: flex;
+      justify-content: space-between;
+    }
+
+    .canvas-wrap {
+      border-radius: 8px;
+      overflow: hidden;
+      border: 1px solid #24324d;
+      background: #040711;
+      position: relative;
+    }
+    canvas#stage { width: 100%; height: 360px; display: block; cursor: grab; }
+    canvas#stage.dragging { cursor: grabbing; }
+
+    .kpi-row {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 10px;
+      margin-top: 10px;
+    }
+    .kpi {
+      background: #070b14;
+      border: 1px solid var(--card-border);
+      border-radius: 6px;
+      padding: 8px 10px;
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+    }
+    .kpi-title { font-size: 10px; color: var(--text-muted); text-transform: uppercase; font-weight: 600; }
+    .kpi-val { font-size: 15px; font-weight: 700; color: #fff; }
+
+    .controls-strip {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 10px;
+      margin-top: 10px;
+    }
+    @media (max-width: 768px) {
+      .controls-strip { grid-template-columns: 1fr 1fr; }
+    }
+    .ctrl-field { display: flex; flex-direction: column; gap: 4px; }
+    .ctrl-field label { font-size: 11px; color: var(--text-muted); font-weight: 500; }
+    select, button, input[type=range] {
+      background: #070b14;
+      border: 1px solid var(--card-border);
+      border-radius: 6px;
+      color: #fff;
+      padding: 6px 10px;
+      font-size: 12px;
+      cursor: pointer;
+    }
+    input[type=range] { padding: 0; accent-color: var(--purple); height: 26px; }
+    button:hover { background: #1e293b; }
+
+    .side-stack {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      height: 100%;
+    }
+    .status-panel {
+      background: #070b14;
+      border: 1px solid var(--card-border);
+      border-radius: 8px;
+      padding: 12px;
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+    .status-header { display: flex; justify-content: space-between; font-size: 12px; font-weight: 600; }
+    .prob-bar-wrap { height: 7px; width: 100%; background: #1e293b; border-radius: 4px; overflow: hidden; }
+    .prob-bar-fill { height: 100%; transition: width 0.15s ease-out; }
+
+    .chart-container { height: 160px; width: 100%; position: relative; }
+  </style>
+</head>
+<body>
+
+<div class="wrapper">
+
+  <header>
+    <div>
+      <h1>C2V: Communicate-to-View Simulation</h1>
+      <p>Optical Occlusion Shadow & mmWave RF Reconstruction [Takayuki Nishio et al.][cite: 1, 4]</p>
+    </div>
+    <div class="badge">Optical Shadow Ray-Tracing</div>
+  </header>
+
+  <!-- 4-Stage C2V Pipeline Bar -->
+  <div class="pipeline-bar">
+    <div class="pipe-step" id="step1">
+      <span class="step-num">Input 1</span>
+      <span class="step-name">Defective Image</span>
+      <span class="step-desc">Camera Blocked by Pillar[cite: 1, 4]</span>
+    </div>
+    <div class="pipe-step" id="step2">
+      <span class="step-num">Input 2</span>
+      <span class="step-name">RF Signatures</span>
+      <span class="step-desc">mmWave Multipath Reflections[cite: 1, 4]</span>
+    </div>
+    <div class="pipe-step" id="step3">
+      <span class="step-num">Step 3</span>
+      <span class="step-name">Joint Feature Fusion</span>
+      <span class="step-desc">CNN + Fully-Connected Layers[cite: 1, 4]</span>
+    </div>
+    <div class="pipe-step" id="step4">
+      <span class="step-num">Output</span>
+      <span class="step-name">Recovered Scene</span>
+      <span class="step-desc">Synthesized Hidden Silhouette[cite: 1, 4]</span>
+    </div>
+  </div>
+
+  <div class="main-grid">
+
+    <!-- Left Stage: Interactive Scene & Live Stream -->
+    <div style="display: flex; flex-direction: column; gap: 12px;">
+      
+      <div class="card">
+        <div class="card-title">
+          <span>Physical Downlink Space (Ray-Traced Optical Shadow)</span>
+          <span style="color: var(--purple); font-weight: normal;">Drag the pedestrian behind the pillar to see rays blocked</span>
+        </div>
+
+        <div class="canvas-wrap">
+          <canvas id="stage" width="900" height="360"></canvas>
+        </div>
+
+        <!-- Controls -->
+        <div class="controls-strip">
+          <div class="ctrl-field">
+            <label>Reconstruction Mode</label>
+            <select id="modeSelect">
+              <option value="c2v">C2V Multimodal (Camera + RF Fusion)[cite: 1, 4]</option>
+              <option value="image_only">Camera Only (No RF Assistance)[cite: 1, 4]</option>
+              <option value="rf_only">RF Only (Low Resolution)[cite: 1, 4]</option>
+            </select>
+          </div>
+
+          <div class="ctrl-field">
+            <label>Pedestrian Movement</label>
+            <select id="motionSelect">
+              <option value="auto">Auto Walk (Passing Behind Wall)</option>
+              <option value="manual">Manual Drag & Drop</option>
+            </select>
+          </div>
+
+          <div class="ctrl-field">
+            <label><span>RF Sensing SNR:</span> <span id="snrVal" style="color: var(--primary-cyan);">24 dB</span></label>
+            <input type="range" id="snrSlider" min="5" max="35" step="1" value="24">
+          </div>
+
+          <div class="ctrl-field">
+            <label>Pedestrian Speed</label>
+            <select id="speedSelect">
+              <option value="0.8">Slow Walk (0.8 px/f)</option>
+              <option value="1.4" selected>Normal Walk (1.4 px/f)</option>
+              <option value="2.4">Fast Walk (2.4 px/f)</option>
+            </select>
+          </div>
+        </div>
+
+        <!-- Real-Time Metrics -->
+        <div class="kpi-row">
+          <div class="kpi">
+            <span class="kpi-title">Camera Visibility</span>
+            <span id="kpi-vis" class="kpi-val" style="color: var(--accent-green);">Direct Line-of-Sight</span>
+          </div>
+          <div class="kpi">
+            <span class="kpi-title">RF Backscatter Power</span>
+            <span id="kpi-rf-pwr" class="kpi-val" style="color: var(--primary-cyan);">-68.2 dBm</span>
+          </div>
+          <div class="kpi">
+            <span class="kpi-title">Estimated Range</span>
+            <span id="kpi-range" class="kpi-val" style="color: var(--secondary-amber);">14.2 m</span>
+          </div>
+          <div class="kpi">
+            <span class="kpi-title">Reconstruction Quality</span>
+            <span id="kpi-recon-acc" class="kpi-val" style="color: var(--purple);">94.8%</span>
+          </div>
+        </div>
+
+      </div>
+
+      <!-- Live Graph: Reconstruction Confidence Stream -->
+      <div class="card">
+        <div class="card-title">
+          <span>Continuous Visual Reconstruction Fidelity (SSIM / Confidence %)</span>
+          <span style="font-size: 11px; text-transform: none; color: var(--text-muted);">Purple: Fused C2V Output | Dim Blue: Raw Camera Confidence</span>
+        </div>
+        <div class="chart-container">
+          <canvas id="chartCanvas"></canvas>
+        </div>
+      </div>
+
+    </div>
+
+    <!-- Right Column: Visual Synthesis Monitor -->
+    <div class="card">
+      <div class="card-title">C2V Decoder State</div>
+
+      <div class="side-stack">
+        
+        <!-- Camera Stream Status -->
+        <div class="status-panel">
+          <div class="status-header">
+            <span style="color: var(--accent-green);">Optical Stream Health</span>
+            <span id="txtOpticalHealth">100%</span>
+          </div>
+          <div class="prob-bar-wrap">
+            <div id="barOpticalHealth" class="prob-bar-fill" style="width: 100%; background: var(--accent-green);"></div>
+          </div>
+          <span style="font-size: 11px; color: var(--text-muted);" id="descOptical">Direct line of sight clear.[cite: 1, 4]</span>
+        </div>
+
+        <!-- RF mmWave Doppler Echo -->
+        <div class="status-panel">
+          <div class="status-header">
+            <span style="color: var(--primary-cyan);">RF Doppler & Range Echo</span>
+            <span id="txtRFEcho">Strong</span>
+          </div>
+          <div class="prob-bar-wrap">
+            <div id="barRFEcho" class="prob-bar-fill" style="width: 85%; background: var(--primary-cyan);"></div>
+          </div>
+          <span style="font-size: 11px; color: var(--text-muted);" id="descRF">Active backscatter return received.[cite: 1, 4]</span>
+        </div>
+
+        <!-- Joint Decoder Status -->
+        <div class="status-panel">
+          <span style="font-size: 11px; font-weight: 700; color: #fff; text-transform: uppercase;">Perception Decision</span>
+          <p id="decisionDesc" style="font-size: 12px; line-height: 1.5; color: var(--text-muted); margin-top: 4px;">
+            Optical camera provides primary features. RF sensing confirms target distance.[cite: 1, 4]
+          </p>
+        </div>
+
+        <div class="status-panel" style="margin-top: auto;">
+          <span style="font-size: 11px; font-weight: 700; color: var(--purple); text-transform: uppercase;">The C2V Principle (Paper Slide 6)</span>
+          <p style="font-size: 11.5px; line-height: 1.5; color: var(--text-muted); margin-top: 4px;">
+            "Wireless signals provide complementary information to recover visual scenes beyond the limitations of conventional cameras."[cite: 1, 4] Optical rays terminate at the wall, while mmWave echoes reconstruct the occluded object.[cite: 1, 4]
+          </p>
+        </div>
+
+      </div>
+    </div>
+
+  </div>
+
+</div>
+
+<script>
+  // --- Geometry Setup ---
+  const Cam  = { x: 100, y: 70 };
+  const BS   = { x: 100, y: 280 };
+  const Wall = { x: 440, y: 45, width: 55, height: 265 }; // Tall opaque pillar
+  
+  // Moving Pedestrian (Walks behind and outside the wall)
+  let ped = { x: 260, y: 180, vx: 1.4, r: 18 };
+  let baseSpeed = 1.4;
+  let mode = "c2v";
+  let motionMode = "auto";
+  let snr = 24;
+  let isDragging = false;
+  let dragOffset = { x: 0, y: 0 };
+  let wavePhase = 0;
+
+  // --- Real-Time Scrolling Chart ---
+  const MAX_POINTS = 65;
+  const labels = Array(MAX_POINTS).fill("");
+  const feedC2V = Array(MAX_POINTS).fill(95);
+  const feedCamOnly = Array(MAX_POINTS).fill(95);
+
+  const chart = new Chart(document.getElementById("chartCanvas").getContext("2d"), {
+    type: "line",
+    data: {
+      labels: labels,
+      datasets: [
+        {
+          label: "C2V Reconstructed Confidence (%)",
+          data: feedC2V,
+          borderColor: "#c084fc",
+          backgroundColor: "rgba(192, 132, 252, 0.1)",
+          borderWidth: 2.5,
+          pointRadius: 0,
+          tension: 0.2
+        },
+        {
+          label: "Camera-Only Baseline (%)",
+          data: feedCamOnly,
+          borderColor: "rgba(0, 240, 255, 0.4)",
+          borderWidth: 1.8,
+          borderDash: [5, 4],
+          pointRadius: 0,
+          tension: 0.2
+        }
+      ]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      animation: false,
+      scales: {
+        y: {
+          min: 0,
+          max: 100,
+          title: { display: true, text: "Perception Confidence (%)", color: "#94a3b8" },
+          grid: { color: "#1e293b" },
+          ticks: { color: "#94a3b8", font: { size: 10 } }
+        },
+        x: { display: false }
+      },
+      plugins: {
+        legend: {
+          display: true,
+          labels: { color: "#f8fafc", font: { size: 11, weight: "bold" } }
+        }
+      }
+    }
+  });
+
+  // Accurate sight-ray intersection with the wall
+  function isLineBlockedByWall(x1, y1, x2, y2, rx, ry, rw, rh) {
+    const wallLeftX = rx;
+    if ((x1 < wallLeftX && x2 > wallLeftX) || (x1 > wallLeftX && x2 < wallLeftX)) {
+      const t = (wallLeftX - x1) / (x2 - x1);
+      const intersectY = y1 + t * (y2 - y1);
+      if (intersectY >= ry && intersectY <= ry + rh) return true;
+    }
+    if (x2 >= rx && x2 <= rx + rw + 25 && y2 >= ry && y2 <= ry + rh) return true;
+    return false;
+  }
+
+  const canvas = document.getElementById("stage");
+  const ctx = canvas.getContext("2d");
+
+  function getCoords(e) {
+    const r = canvas.getBoundingClientRect();
+    const cx = e.touches ? e.touches[0].clientX : e.clientX;
+    const cy = e.touches ? e.touches[0].clientY : e.clientY;
+    return {
+      x: (cx - r.left) * (canvas.width / r.width),
+      y: (cy - r.top) * (canvas.height / r.height)
+    };
+  }
+
+  function onDown(e) {
+    const p = getCoords(e);
+    if (Math.hypot(p.x - ped.x, p.y - ped.y) < ped.r + 20) {
+      isDragging = true;
+      dragOffset.x = p.x - ped.x;
+      dragOffset.y = p.y - ped.y;
+      canvas.classList.add("dragging");
+      document.getElementById("motionSelect").value = "manual";
+      motionMode = "manual";
+    }
+  }
+
+  function onMove(e) {
+    if (!isDragging) return;
+    const p = getCoords(e);
+    ped.x = Math.max(160, Math.min(canvas.width - 70, p.x - dragOffset.x));
+    ped.y = Math.max(70, Math.min(canvas.height - 70, p.y - dragOffset.y));
+  }
+
+  function onUp() {
+    isDragging = false;
+    canvas.classList.remove("dragging");
+  }
+
+  canvas.addEventListener("mousedown", onDown);
+  window.addEventListener("mousemove", onMove);
+  window.addEventListener("mouseup", onUp);
+  canvas.addEventListener("touchstart", onDown, { passive: true });
+  window.addEventListener("touchmove", onMove, { passive: true });
+  window.addEventListener("touchend", onUp);
+
+  document.getElementById("modeSelect").onchange = (e) => mode = e.target.value;
+  document.getElementById("motionSelect").onchange = (e) => motionMode = e.target.value;
+  document.getElementById("speedSelect").onchange = (e) => {
+    baseSpeed = parseFloat(e.target.value);
+    ped.vx = (ped.vx < 0 ? -1 : 1) * baseSpeed;
+  };
+  document.getElementById("snrSlider").oninput = (e) => {
+    snr = parseFloat(e.target.value);
+    document.getElementById("snrVal").innerText = `${snr} dB`;
+  };
+
+  let frameCount = 0;
+
+  function loop() {
+    wavePhase += 0.08;
+
+    if (motionMode === "auto" && !isDragging) {
+      ped.x += ped.vx;
+      if (ped.x > 750) {
+        ped.x = 750;
+        ped.vx = -Math.abs(baseSpeed);
+      } else if (ped.x < 230) {
+        ped.x = 230;
+        ped.vx = Math.abs(baseSpeed);
+      }
+    }
+
+    // 1. Check Visual Occlusion
+    const isOccluded = isLineBlockedByWall(Cam.x, Cam.y, ped.x, ped.y, Wall.x, Wall.y, Wall.width, Wall.height);
+
+    // 2. Compute RF Sensing Returns[cite: 1, 4]
+    const distToBS = Math.hypot(ped.x - BS.x, ped.y - BS.y);
+    const estRangeMeters = (distToBS / 25).toFixed(1);
+    const wallLoss = (ped.x > Wall.x) ? 12 : 0;
+    const rfPower = -50 - 20 * Math.log10(distToBS / 50) - wallLoss + (Math.random() - 0.5) * (30 / snr);
+
+    // 3. Compute Multimodal Reconstruction Confidence (%)
+    let rawCamConf = isOccluded ? Math.max(0, 8 - Math.random() * 5) : 96 + (Math.random() - 0.5) * 3;
+    let rfQuality = Math.min(100, Math.max(10, (snr / 35) * 88 + (Math.random() - 0.5) * 4));
+
+    let finalReconConfidence = 0;
+    if (mode === "c2v") {
+      finalReconConfidence = isOccluded ? Math.min(94, rfQuality + 6) : Math.max(rawCamConf, rfQuality);
+    } else if (mode === "image_only") {
+      finalReconConfidence = rawCamConf;
+    } else {
+      finalReconConfidence = rfQuality * 0.75;
+    }
+
+    // 4. Update Chart
+    frameCount++;
+    if (frameCount % 4 === 0) {
+      feedC2V.push(finalReconConfidence);
+      feedC2V.shift();
+      feedCamOnly.push(rawCamConf);
+      feedCamOnly.shift();
+      chart.update();
+    }
+
+    // 5. Update UI
+    const visEl = document.getElementById("kpi-vis");
+    if (isOccluded) {
+      visEl.innerText = "Occluded (In Shadow Cone)[cite: 1, 4]";
+      visEl.style.color = "var(--danger-red)";
+    } else {
+      visEl.innerText = "Direct Line-of-Sight[cite: 1, 4]";
+      visEl.style.color = "var(--accent-green)";
+    }
+
+    document.getElementById("kpi-rf-pwr").innerText = `${rfPower.toFixed(1)} dBm`;
+    document.getElementById("kpi-range").innerText = `${estRangeMeters} m`;
+    document.getElementById("kpi-recon-acc").innerText = `${finalReconConfidence.toFixed(1)}%`;
+    document.getElementById("kpi-recon-acc").style.color = finalReconConfidence > 75 ? "var(--purple)" : (finalReconConfidence > 40 ? "var(--secondary-amber)" : "var(--danger-red)");
+
+    const optBar = document.getElementById("barOpticalHealth");
+    const optTxt = document.getElementById("txtOpticalHealth");
+    optBar.style.width = `${rawCamConf}%`;
+    optTxt.innerText = `${Math.round(rawCamConf)}%`;
+    optBar.style.background = isOccluded ? "var(--danger-red)" : "var(--accent-green)";
+    document.getElementById("descOptical").innerText = isOccluded ? "Rays cut off! Target is hidden in optical shadow.[cite: 1, 4]" : "Direct optical visibility clear.[cite: 1, 4]";
+
+    const rfBar = document.getElementById("barRFEcho");
+    rfBar.style.width = `${Math.round(rfQuality)}%`;
+    document.getElementById("txtRFEcho").innerText = isOccluded ? "Penetrating Echo" : "Direct Echo";
+
+    const decEl = document.getElementById("decisionDesc");
+    if (mode === "c2v") {
+      if (isOccluded) {
+        decEl.innerText = "C2V Active: Camera blind spot recovered! mmWave RF power sequence synthesizes occluded silhouette (Paper Slide 6).[cite: 1, 4]";
+      } else {
+        decEl.innerText = "Both modalities active: Optical camera provides fine texture; RF provides distance/velocity verification.[cite: 1, 4]";
+      }
+    } else if (mode === "image_only") {
+      decEl.innerText = isOccluded ? "Image-Only Mode: Target lost inside shadow cone! Zero perception.[cite: 1, 4]" : "Direct line of sight clear.[cite: 1, 4]";
+    } else {
+      decEl.innerText = "RF-Only Mode: Target detected through wall, but fine visual resolution is unavailable.[cite: 1, 4]";
+    }
+
+    document.getElementById("step1").classList.toggle("active", isOccluded);
+    document.getElementById("step2").classList.toggle("active", isOccluded);
+    document.getElementById("step3").classList.toggle("active", isOccluded && mode === "c2v");
+    document.getElementById("step4").classList.toggle("active", mode === "c2v" && isOccluded);
+
+    drawScene(isOccluded);
+
+    requestAnimationFrame(loop);
+  }
+
+  function drawScene(isOccluded) {
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+    // =========================================================================
+    // 1. RAY-TRACED OPTICAL ILLUMINATION & SHADOW CASTING
+    // =========================================================================
+    // Coordinates of Wall's front corners
+    const wTopLeft = { x: Wall.x, y: Wall.y };
+    const wBottomLeft = { x: Wall.x, y: Wall.y + Wall.height };
+
+    // Projection slopes from Camera past the top and bottom corners of the wall
+    const slopeTop = (wTopLeft.y - Cam.y) / (wTopLeft.x - Cam.x);
+    const slopeBottom = (wBottomLeft.y - Cam.y) / (wBottomLeft.x - Cam.x);
+
+    const shadowFarTopY = Cam.y + slopeTop * (canvas.width - Cam.x);
+    const shadowFarBottomY = Cam.y + slopeBottom * (canvas.width - Cam.x);
+
+    // --- (A) Primary Lighted Field of View (Front of Wall) ---
+    // The camera's rays illuminate everything up to the wall face
+    ctx.save();
+    const lightGrad = ctx.createRadialGradient(Cam.x, Cam.y, 10, Cam.x + 350, Cam.y + 100, 700);
+    lightGrad.addColorStop(0, "rgba(16, 185, 129, 0.35)");
+    lightGrad.addColorStop(0.7, "rgba(16, 185, 129, 0.12)");
+    lightGrad.addColorStop(1, "rgba(16, 185, 129, 0.02)");
+
+    ctx.fillStyle = lightGrad;
+    ctx.beginPath();
+    ctx.moveTo(Cam.x, Cam.y);
+    // Ray to top edge of wall
+    ctx.lineTo(wTopLeft.x, wTopLeft.y);
+    // Down along the front face of the wall (Rays are physically stopped here!)
+    ctx.lineTo(wBottomLeft.x, wBottomLeft.y);
+    ctx.closePath();
+    ctx.fill();
+
+    // Boundary rays from camera to the wall corners
+    ctx.strokeStyle = "rgba(16, 185, 129, 0.75)";
+    ctx.lineWidth = 1.8;
+    ctx.beginPath();
+    ctx.moveTo(Cam.x, Cam.y);
+    ctx.lineTo(wTopLeft.x, wTopLeft.y);
+    ctx.moveTo(Cam.x, Cam.y);
+    ctx.lineTo(wBottomLeft.x, wBottomLeft.y);
+    ctx.stroke();
+
+    // --- (B) Rays Past the Wall (Top & Bottom Clearance) ---
+    // Light that flies cleanly ABOVE the wall
+    ctx.fillStyle = "rgba(16, 185, 129, 0.05)";
+    ctx.beginPath();
+    ctx.moveTo(Cam.x, Cam.y);
+    ctx.lineTo(canvas.width, -50);
+    ctx.lineTo(canvas.width, shadowFarTopY);
+    ctx.lineTo(wTopLeft.x, wTopLeft.y);
+    ctx.closePath();
+    ctx.fill();
+
+    // Light that flies cleanly BELOW the wall
+    ctx.beginPath();
+    ctx.moveTo(Cam.x, Cam.y);
+    ctx.lineTo(wBottomLeft.x, wBottomLeft.y);
+    ctx.lineTo(canvas.width, shadowFarBottomY);
+    ctx.lineTo(canvas.width, canvas.height + 50);
+    ctx.closePath();
+    ctx.fill();
+
+    // --- (C) Optical Shadow Zone (Cut after wall - Red tint) ---
+    // Area directly behind the pillar where optical rays cannot reach
+    ctx.fillStyle = "rgba(255, 0, 85, 0.06)";
+    ctx.beginPath();
+    ctx.moveTo(Wall.x + Wall.width, Wall.y);
+    ctx.lineTo(canvas.width, shadowFarTopY);
+    ctx.lineTo(canvas.width, shadowFarBottomY);
+    ctx.lineTo(Wall.x + Wall.width, Wall.y + Wall.height);
+    ctx.closePath();
+    ctx.fill();
+
+    // Dashed Shadow Boundary Lines
+    ctx.strokeStyle = "rgba(255, 0, 85, 0.4)";
+    ctx.lineWidth = 1.2;
+    ctx.setLineDash([6, 6]);
+    ctx.beginPath();
+    ctx.moveTo(Wall.x + Wall.width, Wall.y);
+    ctx.lineTo(canvas.width, shadowFarTopY);
+    ctx.moveTo(Wall.x + Wall.width, Wall.y + Wall.height);
+    ctx.lineTo(canvas.width, shadowFarBottomY);
+    ctx.stroke();
+    ctx.setLineDash([]);
+
+    // Shadow Cone Label
+    ctx.fillStyle = "rgba(255, 0, 85, 0.55)";
+    ctx.font = "bold 11px sans-serif";
+    ctx.textAlign = "center";
+    ctx.fillText("Optical Shadow / Blind Zone[cite: 1, 4]", Wall.x + 190, Wall.y + Wall.height / 2 + 50);
+    ctx.restore();
+
+    // =========================================================================
+    // 2. CAMERA SIGHT RAY TRUNCATION (STOPS AT WALL)
+    // =========================================================================
+    ctx.save();
+    ctx.lineWidth = 2;
+    if (isOccluded) {
+      // Ray is physically blocked: drawn from Camera and CUT AT THE WALL
+      const t = (Wall.x - Cam.x) / (ped.x - Cam.x);
+      const hitY = Cam.y + t * (ped.y - Cam.y);
+
+      ctx.strokeStyle = "rgba(255, 0, 85, 0.85)";
+      ctx.setLineDash([5, 5]);
+      ctx.beginPath();
+      ctx.moveTo(Cam.x, Cam.y);
+      ctx.lineTo(Wall.x, hitY); // Stops exactly at front edge of wall!
+      ctx.stroke();
+
+      // Impact Dot on Wall
+      ctx.fillStyle = "#ff0055";
+      ctx.shadowColor = "#ff0055";
+      ctx.shadowBlur = 10;
+      ctx.beginPath();
+      ctx.arc(Wall.x, hitY, 4, 0, Math.PI * 2);
+      ctx.fill();
+    } else {
+      // Direct Unobstructed Line of Sight to Pedestrian
+      ctx.strokeStyle = "#10b981";
+      ctx.shadowColor = "#10b981";
+      ctx.shadowBlur = 8;
+      ctx.setLineDash([4, 4]);
+      ctx.beginPath();
+      ctx.moveTo(Cam.x, Cam.y);
+      ctx.lineTo(ped.x, ped.y);
+      ctx.stroke();
+    }
+    ctx.restore();
+
+    // =========================================================================
+    // 3. mmWave PENETRATING RF WAVES (CYAN WAVES PASS THROUGH WALL)[cite: 1, 4]
+    // =========================================================================
+    ctx.save();
+    ctx.strokeStyle = "rgba(0, 240, 255, 0.55)";
+    ctx.lineWidth = 2;
+    for (let r = 1; r <= 4; r++) {
+      const radius = ((wavePhase * 30 + r * 55) % 450) + 20;
+      ctx.beginPath();
+      const angleToPed = Math.atan2(ped.y - BS.y, ped.x - BS.x);
+      ctx.arc(BS.x, BS.y, radius, angleToPed - 0.45, angleToPed + 0.45);
+      ctx.stroke();
+    }
+
+    // Direct Penetrating RF Beam line
+    ctx.setLineDash([6, 6]);
+    ctx.lineWidth = 2.5;
+    ctx.strokeStyle = "rgba(0, 240, 255, 0.8)";
+    ctx.shadowColor = "#00f0ff";
+    ctx.shadowBlur = 8;
+    ctx.beginPath();
+    ctx.moveTo(BS.x, BS.y);
+    ctx.lineTo(ped.x, ped.y); // Penetrates cleanly through wall
+    ctx.stroke();
+    ctx.restore();
+
+    // =========================================================================
+    // 4. OPAQUE PILLAR / WALL (BARRIER)
+    // =========================================================================
+    ctx.save();
+    ctx.fillStyle = "#1e293b";
+    ctx.fillRect(Wall.x, Wall.y, Wall.width, Wall.height);
+    ctx.strokeStyle = "#475569";
+    ctx.lineWidth = 2;
+    ctx.strokeRect(Wall.x, Wall.y, Wall.width, Wall.height);
+
+    // Wall Slat Markings
+    ctx.strokeStyle = "rgba(148, 163, 184, 0.25)";
+    ctx.lineWidth = 1;
+    for (let py = Wall.y + 14; py < Wall.y + Wall.height; py += 18) {
+      ctx.beginPath();
+      ctx.moveTo(Wall.x, py);
+      ctx.lineTo(Wall.x + Wall.width, py);
+      ctx.stroke();
+    }
+
+    ctx.fillStyle = "#f8fafc";
+    ctx.font = "bold 13px sans-serif";
+    ctx.textAlign = "center";
+    ctx.fillText("Opaque Pillar", Wall.x + Wall.width / 2, Wall.y - 12);
+    ctx.font = "11px sans-serif";
+    ctx.fillStyle = "#94a3b8";
+    ctx.fillText("(Optical Barrier)[cite: 1, 4]", Wall.x + Wall.width / 2, Wall.y + Wall.height / 2);
+    ctx.restore();
+
+    // =========================================================================
+    // 5. PEDESTRIAN (GROUND TRUTH VS. C2V RECONSTRUCTION)[cite: 1, 4]
+    // =========================================================================
+    ctx.save();
+    const px = ped.x;
+    const py = ped.y;
+
+    if (isOccluded) {
+      if (mode === "c2v") {
+        // C2V HOLOGRAPHIC RECONSTRUCTION (Purple Glow)[cite: 1, 4]
+        ctx.fillStyle = "rgba(192, 132, 252, 0.35)";
+        ctx.strokeStyle = "#c084fc";
+        ctx.lineWidth = 2;
+        ctx.shadowColor = "#c084fc";
+        ctx.shadowBlur = 18;
+
+        ctx.beginPath();
+        ctx.arc(px, py - 30, 7.5, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.stroke();
+
+        ctx.beginPath();
+        ctx.moveTo(px, py - 22);
+        ctx.lineTo(px, py + 8);
+        ctx.lineTo(px - 10, py + 30);
+        ctx.moveTo(px, py + 8);
+        ctx.lineTo(px + 10, py + 30);
+        ctx.moveTo(px, py - 14);
+        ctx.lineTo(px - 12, py - 2);
+        ctx.moveTo(px, py - 14);
+        ctx.lineTo(px + 12, py - 2);
+        ctx.stroke();
+
+        ctx.strokeRect(px - 22, py - 42, 44, 76);
+        ctx.fillStyle = "#c084fc";
+        ctx.font = "bold 11px sans-serif";
+        ctx.textAlign = "center";
+        ctx.fillText("C2V RF-Reconstructed![cite: 1, 4]", px, py - 48);
+      } else if (mode === "image_only") {
+        // INVISIBLE: TRUNCATED IN OPTICAL-ONLY MODE[cite: 1, 4]
+        ctx.strokeStyle = "rgba(255, 0, 85, 0.5)";
+        ctx.setLineDash([4, 4]);
+        ctx.strokeRect(px - 20, py - 40, 40, 72);
+        ctx.fillStyle = "#ff0055";
+        ctx.font = "bold 11px sans-serif";
+        ctx.textAlign = "center";
+        ctx.fillText("Blocked Behind Wall[cite: 1, 4]", px, py - 46);
+      } else {
+        // RF-ONLY: BLURRED BLOB[cite: 1, 4]
+        ctx.fillStyle = "rgba(0, 240, 255, 0.3)";
+        ctx.beginPath();
+        ctx.arc(px, py, 26, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.fillStyle = "#00f0ff";
+        ctx.font = "bold 11px sans-serif";
+        ctx.textAlign = "center";
+        ctx.fillText("Coarse RF Reflection[cite: 1, 4]", px, py - 34);
+      }
+    } else {
+      // Normal Line of Sight Pedestrian
+      ctx.fillStyle = "#e2e8f0";
+      ctx.beginPath();
+      ctx.arc(px, py - 30, 7.5, 0, Math.PI * 2);
+      ctx.fill();
+
+      ctx.strokeStyle = "#e2e8f0";
+      ctx.lineWidth = 3.5;
+      ctx.beginPath();
+      ctx.moveTo(px, py - 22);
+      ctx.lineTo(px, py + 8);
+      ctx.lineTo(px - 10, py + 30);
+      ctx.moveTo(px, py + 8);
+      ctx.lineTo(px + 10, py + 30);
+      ctx.moveTo(px, py - 14);
+      ctx.lineTo(px - 12, py - 2);
+      ctx.moveTo(px, py - 14);
+      ctx.lineTo(px + 12, py - 2);
+      ctx.stroke();
+
+      ctx.fillStyle = "#ffffff";
+      ctx.font = "bold 12px sans-serif";
+      ctx.textAlign = "center";
+      ctx.fillText("Visible Pedestrian[cite: 1, 4]", px, py - 44);
+    }
+    ctx.restore();
+
+    // =========================================================================
+    // 6. HARDWARE SENSORS
+    // =========================================================================
+    // Optical Camera on Top
+    ctx.save();
+    ctx.fillStyle = "#10b981";
+    ctx.shadowColor = "#10b981";
+    ctx.shadowBlur = 12;
+    ctx.fillRect(Cam.x - 8, Cam.y - 8, 16, 16);
+    ctx.shadowBlur = 0;
+    ctx.fillStyle = "#34d399";
+    ctx.font = "bold 12px sans-serif";
+    ctx.fillText("RGB-D Camera Unit", Cam.x - 45, Cam.y - 14);
+
+    // mmWave RF Transceiver on Bottom
+    ctx.fillStyle = "#00f0ff";
+    ctx.shadowColor = "#00f0ff";
+    ctx.shadowBlur = 12;
+    ctx.beginPath();
+    ctx.arc(BS.x, BS.y, 9, 0, Math.PI * 2);
+    ctx.fill();
+
+    ctx.strokeStyle = "#64748b";
+    ctx.lineWidth = 2.5;
+    ctx.beginPath();
+    ctx.moveTo(BS.x - 10, BS.y + 24);
+    ctx.lineTo(BS.x, BS.y);
+    ctx.lineTo(BS.x + 10, BS.y + 24);
+    ctx.stroke();
+
+    ctx.shadowBlur = 0;
+    ctx.fillStyle = "#ffffff";
+    ctx.font = "bold 12px sans-serif";
+    ctx.fillText("mmWave RF Transceiver[cite: 1, 4]", BS.x - 65, BS.y + 40);
+    ctx.restore();
+  }
+
+  loop();
+</script>
+
+</body>
+</html>

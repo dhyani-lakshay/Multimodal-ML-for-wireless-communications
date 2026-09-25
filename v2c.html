@@ -1,0 +1,829 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>V2C: Dual Base Station Continuous Power Simulation</title>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <style>
+    :root {
+      --bg: #070b14;
+      --card-bg: #0f172a;
+      --card-border: #1e293d;
+      --primary-cyan: #00f0ff;
+      --secondary-amber: #ffb703;
+      --accent-green: #10b981;
+      --danger-red: #ff0055;
+      --text: #f8fafc;
+      --text-muted: #94a3b8;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
+    body { background-color: var(--bg); color: var(--text); padding: 18px; display: flex; justify-content: center; }
+
+    .wrapper {
+      width: 100%;
+      max-width: 1140px;
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+    }
+
+    header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding-bottom: 10px;
+      border-bottom: 1px solid var(--card-border);
+    }
+    header h1 { font-size: 20px; font-weight: 700; color: #fff; }
+    header p { font-size: 13px; color: var(--text-muted); margin-top: 2px; }
+    .badge {
+      font-size: 11px;
+      padding: 4px 10px;
+      border-radius: 9999px;
+      font-weight: 600;
+      background: rgba(0, 240, 255, 0.12);
+      color: var(--primary-cyan);
+      border: 1px solid rgba(0, 240, 255, 0.3);
+    }
+
+    /* 4-Stage Architecture Pipeline Bar */
+    .pipeline-bar {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 10px;
+    }
+    .pipe-step {
+      background: var(--card-bg);
+      border: 1px solid var(--card-border);
+      border-radius: 8px;
+      padding: 10px 12px;
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+      transition: all 0.2s ease;
+    }
+    .pipe-step.active {
+      border-color: var(--primary-cyan);
+      box-shadow: 0 0 14px rgba(0, 240, 255, 0.25);
+    }
+    .step-num { font-size: 10px; color: var(--text-muted); font-weight: 700; text-transform: uppercase; }
+    .step-name { font-size: 13px; font-weight: 600; color: #fff; }
+    .step-desc { font-size: 11px; color: var(--text-muted); }
+
+    .main-grid {
+      display: grid;
+      grid-template-columns: 1fr 340px;
+      gap: 14px;
+    }
+    @media (max-width: 920px) {
+      .main-grid { grid-template-columns: 1fr; }
+    }
+
+    .card {
+      background: var(--card-bg);
+      border: 1px solid var(--card-border);
+      border-radius: 10px;
+      padding: 14px;
+      display: flex;
+      flex-direction: column;
+    }
+    .card-title {
+      font-size: 12px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.6px;
+      color: var(--text-muted);
+      margin-bottom: 10px;
+      display: flex;
+      justify-content: space-between;
+    }
+
+    .canvas-wrap {
+      border-radius: 8px;
+      overflow: hidden;
+      border: 1px solid #24324d;
+      background: #040711;
+      position: relative;
+    }
+    canvas#stage { width: 100%; height: 360px; display: block; cursor: grab; }
+    canvas#stage.dragging { cursor: grabbing; }
+
+    .kpi-row {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 10px;
+      margin-top: 10px;
+    }
+    .kpi {
+      background: #070b14;
+      border: 1px solid var(--card-border);
+      border-radius: 6px;
+      padding: 8px 10px;
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+    }
+    .kpi-title { font-size: 10px; color: var(--text-muted); text-transform: uppercase; font-weight: 600; }
+    .kpi-val { font-size: 15px; font-weight: 700; color: #fff; }
+
+    .controls-strip {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 10px;
+      margin-top: 10px;
+    }
+    @media (max-width: 768px) {
+      .controls-strip { grid-template-columns: 1fr 1fr; }
+    }
+    .ctrl-field { display: flex; flex-direction: column; gap: 4px; }
+    .ctrl-field label { font-size: 11px; color: var(--text-muted); font-weight: 500; }
+    select, button {
+      background: #070b14;
+      border: 1px solid var(--card-border);
+      border-radius: 6px;
+      color: #fff;
+      padding: 6px 10px;
+      font-size: 12px;
+      cursor: pointer;
+    }
+    button:hover { background: #1e293b; }
+
+    .side-stack {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      height: 100%;
+    }
+    .status-panel {
+      background: #070b14;
+      border: 1px solid var(--card-border);
+      border-radius: 8px;
+      padding: 12px;
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+    .status-header { display: flex; justify-content: space-between; font-size: 12px; font-weight: 600; }
+    .prob-bar-wrap { height: 7px; width: 100%; background: #1e293b; border-radius: 4px; overflow: hidden; }
+    .prob-bar-fill { height: 100%; transition: width 0.15s ease-out; }
+
+    .chart-container { height: 180px; width: 100%; position: relative; }
+  </style>
+</head>
+<body>
+
+<div class="wrapper">
+
+  <header>
+    <div>
+      <h1>V2C: Continuous Dual Base Station Power Feed</h1>
+      <p>Simultaneous RSS Tracking from BS 1 & BS 2 with In-Line Geometry [Takayuki Nishio et al.][cite: 1, 4]</p>
+    </div>
+    <div class="badge">Simultaneous Dual Stream</div>
+  </header>
+
+  <!-- 4-Stage V2C Architecture Bar -->
+  <div class="pipeline-bar">
+    <div class="pipe-step" id="step1">
+      <span class="step-num">Step 1</span>
+      <span class="step-name">Visual Sensing</span>
+      <span class="step-desc">Camera Look-Ahead[cite: 1, 4]</span>
+    </div>
+    <div class="pipe-step" id="step2">
+      <span class="step-num">Step 2</span>
+      <span class="step-name">State Extraction</span>
+      <span class="step-desc">Heading & Velocity[cite: 1, 4]</span>
+    </div>
+    <div class="pipe-step" id="step3">
+      <span class="step-num">Step 3</span>
+      <span class="step-name">ML Prediction</span>
+      <span class="step-desc">Blockage Anticipator[cite: 1, 4]</span>
+    </div>
+    <div class="pipe-step" id="step4">
+      <span class="step-num">Step 4</span>
+      <span class="step-name">Proactive Action</span>
+      <span class="step-desc">Preemptive Handover[cite: 1, 4]</span>
+    </div>
+  </div>
+
+  <div class="main-grid">
+
+    <!-- Left Stage: Canvas & Dual Graph -->
+    <div style="display: flex; flex-direction: column; gap: 12px;">
+      
+      <div class="card">
+        <div class="card-title">
+          <span>Horizontal Corridor Space</span>
+          <span style="color: var(--primary-cyan); font-weight: normal;">Drag the obstacle across either the BS 1 or BS 2 axis</span>
+        </div>
+
+        <div class="canvas-wrap">
+          <canvas id="stage" width="900" height="360"></canvas>
+        </div>
+
+        <!-- Controls -->
+        <div class="controls-strip">
+          <div class="ctrl-field">
+            <label>Communication Paradigm</label>
+            <select id="modeSelect">
+              <option value="v2c">Proactive V2C (Vision Look-Ahead)[cite: 1, 4]</option>
+              <option value="reactive">Conventional (Reactive RF Trigger)[cite: 1, 4]</option>
+            </select>
+          </div>
+
+          <div class="ctrl-field">
+            <label>Obstacle Motion</label>
+            <select id="motionSelect">
+              <option value="auto">Auto Patrol (Crossing)[cite: 1, 4]</option>
+              <option value="manual">Manual Drag & Drop</option>
+            </select>
+          </div>
+
+          <div class="ctrl-field">
+            <label>Obstacle Crossing Speed</label>
+            <select id="speedSelect">
+              <option value="0.6">Slow Pace (0.6 px/f)</option>
+              <option value="1.2" selected>Normal Pace (1.2 px/f)</option>
+              <option value="2.2">Fast Pace (2.2 px/f)</option>
+            </select>
+          </div>
+
+          <div class="ctrl-field">
+            <label>Reset State</label>
+            <button id="resetPedBtn">Reset Position</button>
+          </div>
+        </div>
+
+        <!-- Real-Time Metrics -->
+        <div class="kpi-row">
+          <div class="kpi">
+            <span class="kpi-title">Active Serving BS</span>
+            <span id="kpi-active-bs" class="kpi-val" style="color: var(--primary-cyan);">BS 1 (Primary)</span>
+          </div>
+          <div class="kpi">
+            <span class="kpi-title">BS 1 Power (Live)</span>
+            <span id="kpi-p-bs1" class="kpi-val" style="color: var(--primary-cyan);">-63.0 dBm</span>
+          </div>
+          <div class="kpi">
+            <span class="kpi-title">BS 2 Power (Live)</span>
+            <span id="kpi-p-bs2" class="kpi-val" style="color: var(--secondary-amber);">-73.0 dBm</span>
+          </div>
+          <div class="kpi">
+            <span class="kpi-title">Channel State</span>
+            <span id="kpi-channel" class="kpi-val" style="color: var(--accent-green);">LOS Active[cite: 1, 4]</span>
+          </div>
+        </div>
+
+      </div>
+
+      <!-- Continuous Dual Power Graph -->
+      <div class="card">
+        <div class="card-title">
+          <span>Continuous Received Signal Strength (Both Towers)</span>
+          <span style="font-size: 11px; text-transform: none; color: var(--text-muted);">Solid Cyan: BS 1 | Dashed Amber: BS 2</span>
+        </div>
+        <div class="chart-container">
+          <canvas id="chartCanvas"></canvas>
+        </div>
+      </div>
+
+    </div>
+
+    <!-- Right Column: Model State -->
+    <div class="card">
+      <div class="card-title">V2C ML Inference Engine</div>
+
+      <div class="side-stack">
+        
+        <!-- BS 1 Risk -->
+        <div class="status-panel">
+          <div class="status-header">
+            <span style="color: var(--primary-cyan);">BS 1 Link Blockage Risk</span>
+            <span id="riskBS1Pct" style="color: var(--accent-green);">0%</span>
+          </div>
+          <div class="prob-bar-wrap">
+            <div id="riskBS1Bar" class="prob-bar-fill" style="width: 0%; background: var(--accent-green);"></div>
+          </div>
+          <span style="font-size: 11px; color: var(--text-muted);" id="bs1DistText">Trajectory: Normal</span>
+        </div>
+
+        <!-- BS 2 Risk -->
+        <div class="status-panel">
+          <div class="status-header">
+            <span style="color: var(--secondary-amber);">BS 2 Link Blockage Risk</span>
+            <span id="riskBS2Pct" style="color: var(--accent-green);">0%</span>
+          </div>
+          <div class="prob-bar-wrap">
+            <div id="riskBS2Bar" class="prob-bar-fill" style="width: 0%; background: var(--accent-green);"></div>
+          </div>
+          <span style="font-size: 11px; color: var(--text-muted);" id="bs2DistText">Trajectory: Normal</span>
+        </div>
+
+        <!-- Handover Logic -->
+        <div class="status-panel">
+          <span style="font-size: 11px; font-weight: 700; color: #fff; text-transform: uppercase;">Handover State</span>
+          <p id="decisionDesc" style="font-size: 12px; line-height: 1.5; color: var(--text-muted); margin-top: 4px;">
+            Corridor path clear. Connected to primary base station BS 1[cite: 1, 4].
+          </p>
+        </div>
+
+        <div class="status-panel" style="margin-top: auto;">
+          <span style="font-size: 11px; font-weight: 700; color: var(--primary-cyan); text-transform: uppercase;">Dual Monitoring Benefit</span>
+          <p style="font-size: 11.5px; line-height: 1.5; color: var(--text-muted); margin-top: 4px;">
+            Plotting both signals continuously shows how the secondary base station remains stable while the blocked tower experiences a ~30 dB attenuation drop[cite: 1, 4].
+          </p>
+        </div>
+
+      </div>
+    </div>
+
+  </div>
+
+</div>
+
+<script>
+  // --- Perfect Horizontal In-Line Geometry (All on y = 180) ---
+  const BS1  = { x: 100, y: 180, basePower: -63 };
+  const User = { x: 450, y: 180 };
+  const BS2  = { x: 800, y: 180, basePower: -73 };
+
+  // Obstacle initialized with ample vertical runway (y: 35 to 325)
+  let ped = { x: 275, y: 40, vy: 1.2, r: 18 };
+  let baseSpeed = 1.2;
+  let commMode = "v2c";
+  let motionMode = "auto";
+  let activeBS = 1;
+  let isDragging = false;
+  let dragOffset = { x: 0, y: 0 };
+
+  // --- Real-Time Scrolling Chart with BOTH BASE STATIONS PLOTTED ---
+  const MAX_POINTS = 65;
+  const labels = Array(MAX_POINTS).fill("");
+  const feedBS1 = Array(MAX_POINTS).fill(-63);
+  const feedBS2 = Array(MAX_POINTS).fill(-73);
+
+  const chart = new Chart(document.getElementById("chartCanvas").getContext("2d"), {
+    type: "line",
+    data: {
+      labels: labels,
+      datasets: [
+        {
+          label: "Base Station 1 (BS 1)",
+          data: feedBS1,
+          borderColor: "#00f0ff",
+          backgroundColor: "rgba(0, 240, 255, 0.05)",
+          borderWidth: 2.5,
+          pointRadius: 0,
+          tension: 0.2
+        },
+        {
+          label: "Base Station 2 (BS 2)",
+          data: feedBS2,
+          borderColor: "#ffb703",
+          borderWidth: 2.2,
+          borderDash: [5, 4],
+          pointRadius: 0,
+          tension: 0.2
+        }
+      ]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      animation: false,
+      scales: {
+        y: {
+          min: -105,
+          max: -55,
+          title: { display: true, text: "Received Power (dBm)", color: "#94a3b8" },
+          grid: { color: "#1e293d" },
+          ticks: { color: "#94a3b8", font: { size: 10 } }
+        },
+        x: { display: false }
+      },
+      plugins: {
+        legend: {
+          display: true,
+          labels: { color: "#f8fafc", font: { size: 11, weight: "bold" } }
+        }
+      }
+    }
+  });
+
+  function distToSegment(px, py, x1, y1, x2, y2) {
+    const l2 = (x2 - x1)**2 + (y2 - y1)**2;
+    if (l2 === 0) return Math.hypot(px - x1, py - y1);
+    let t = ((px - x1)*(x2 - x1) + (py - y1)*(y2 - y1)) / l2;
+    t = Math.max(0, Math.min(1, t));
+    return Math.hypot(px - (x1 + t*(x2 - x1)), py - (y1 + t*(y2 - y1)));
+  }
+
+  const canvas = document.getElementById("stage");
+  const ctx = canvas.getContext("2d");
+
+  function getCoords(e) {
+    const r = canvas.getBoundingClientRect();
+    const cx = e.touches ? e.touches[0].clientX : e.clientX;
+    const cy = e.touches ? e.touches[0].clientY : e.clientY;
+    return {
+      x: (cx - r.left) * (canvas.width / r.width),
+      y: (cy - r.top) * (canvas.height / r.height)
+    };
+  }
+
+  function onDown(e) {
+    const p = getCoords(e);
+    if (Math.hypot(p.x - ped.x, p.y - ped.y) < ped.r + 20) {
+      isDragging = true;
+      dragOffset.x = p.x - ped.x;
+      dragOffset.y = p.y - ped.y;
+      canvas.classList.add("dragging");
+      document.getElementById("motionSelect").value = "manual";
+      motionMode = "manual";
+    }
+  }
+
+  function onMove(e) {
+    if (!isDragging) return;
+    const p = getCoords(e);
+    ped.x = Math.max(120, Math.min(canvas.width - 120, p.x - dragOffset.x));
+    ped.y = Math.max(30, Math.min(canvas.height - 30, p.y - dragOffset.y));
+  }
+
+  function onUp() {
+    isDragging = false;
+    canvas.classList.remove("dragging");
+  }
+
+  canvas.addEventListener("mousedown", onDown);
+  window.addEventListener("mousemove", onMove);
+  window.addEventListener("mouseup", onUp);
+  canvas.addEventListener("touchstart", onDown, { passive: true });
+  window.addEventListener("touchmove", onMove, { passive: true });
+  window.addEventListener("touchend", onUp);
+
+  document.getElementById("modeSelect").onchange = (e) => commMode = e.target.value;
+  document.getElementById("motionSelect").onchange = (e) => motionMode = e.target.value;
+  document.getElementById("speedSelect").onchange = (e) => {
+    baseSpeed = parseFloat(e.target.value);
+    ped.vy = (ped.vy < 0 ? -1 : 1) * baseSpeed;
+  };
+  document.getElementById("resetPedBtn").onclick = () => {
+    ped.x = 275;
+    ped.y = 40;
+    ped.vy = Math.abs(baseSpeed);
+  };
+
+  let frameCount = 0;
+
+  function loop() {
+    // Obstacle transverse crossing with full runway
+    if (motionMode === "auto" && !isDragging) {
+      ped.y += ped.vy;
+      if (ped.y > canvas.height - 35) {
+        ped.y = canvas.height - 35;
+        ped.vy = -Math.abs(baseSpeed);
+      } else if (ped.y < 35) {
+        ped.y = 35;
+        ped.vy = Math.abs(baseSpeed);
+      }
+    }
+
+    // Distances to horizontal link segments
+    const dBS1 = distToSegment(ped.x, ped.y, BS1.x, BS1.y, User.x, User.y);
+    const dBS2 = distToSegment(ped.x, ped.y, User.x, User.y, BS2.x, BS2.y);
+
+    // Blockage on BS 1
+    let att1 = 0;
+    let blocked1 = false;
+    if (dBS1 < 36 && ped.x >= BS1.x && ped.x <= User.x) {
+      att1 = 30 * Math.exp(-0.5 * (dBS1 / 13)**2);
+      if (att1 > 8) blocked1 = true;
+    }
+
+    // Blockage on BS 2
+    let att2 = 0;
+    let blocked2 = false;
+    if (dBS2 < 36 && ped.x >= User.x && ped.x <= BS2.x) {
+      att2 = 30 * Math.exp(-0.5 * (dBS2 / 13)**2);
+      if (att2 > 8) blocked2 = true;
+    }
+
+    // V2C Look-Ahead Risk Engine
+    const lookAheadDistance = 75;
+    const isApproachingBS1 = (dBS1 < lookAheadDistance) && (ped.x >= BS1.x) && (ped.x <= User.x);
+    const isApproachingBS2 = (dBS2 < lookAheadDistance) && (ped.x >= User.x) && (ped.x <= BS2.x);
+
+    const risk1 = isApproachingBS1 ? Math.max(0, Math.min(100, Math.round((1 - (dBS1 / lookAheadDistance)) * 100))) : 0;
+    const risk2 = isApproachingBS2 ? Math.max(0, Math.min(100, Math.round((1 - (dBS2 / lookAheadDistance)) * 100))) : 0;
+
+    // Both Powers are calculated continuously
+    const noise1 = (Math.random() - 0.5) * 0.8;
+    const noise2 = (Math.random() - 0.5) * 0.8;
+    const p1_live = BS1.basePower - att1 + noise1;
+    const p2_live = BS2.basePower - att2 + noise2;
+
+    let statusText = "";
+    if (commMode === "v2c") {
+      // Preemptive handover before physical blockage occurs
+      if (isApproachingBS1 && dBS1 < 50) {
+        activeBS = 2;
+        statusText = "V2C Vision Alert: Impending blockage on BS 1 path. Preemptively switched to BS 2![cite: 1, 4]";
+      } else if (isApproachingBS2 && dBS2 < 50) {
+        activeBS = 1;
+        statusText = "V2C Vision Alert: Impending blockage on BS 2 path. Preemptively switched to BS 1![cite: 1, 4]";
+      } else if (!isApproachingBS1 && !isApproachingBS2) {
+        activeBS = 1;
+        statusText = "Horizontal link clear. Connected to primary base station BS 1.[cite: 1, 4]";
+      } else {
+        statusText = `Look-ahead tracking active. Serving via BS ${activeBS}.[cite: 1, 4]`;
+      }
+    } else {
+      // Conventional reactive: triggers only after physical signal attenuation drop
+      if (activeBS === 1 && p2_live > p1_live + 2.0) {
+        activeBS = 2;
+        statusText = "Reactive Switch: Primary BS 1 link dropped! Handed over to BS 2.[cite: 1, 4]";
+      } else if (activeBS === 2 && p1_live > p2_live + 2.0) {
+        activeBS = 1;
+        statusText = "Reactive Switch: BS 2 link dropped! Handed over to BS 1.[cite: 1, 4]";
+      } else {
+        statusText = `Operating on BS ${activeBS}. Reactively monitoring SNR.[cite: 1, 4]`;
+      }
+    }
+
+    const activeBlocked = (activeBS === 1 && blocked1) || (activeBS === 2 && blocked2);
+
+    // Continuous Dual-Plot Update
+    frameCount++;
+    if (frameCount % 4 === 0) {
+      feedBS1.push(p1_live);
+      feedBS1.shift();
+      feedBS2.push(p2_live);
+      feedBS2.shift();
+      chart.update();
+    }
+
+    // UI Updates
+    document.getElementById("kpi-active-bs").innerText = activeBS === 1 ? "BS 1 (Primary)" : "BS 2 (Candidate)";
+    document.getElementById("kpi-active-bs").style.color = activeBS === 1 ? "var(--primary-cyan)" : "var(--secondary-amber)";
+
+    document.getElementById("kpi-p-bs1").innerText = `${p1_live.toFixed(1)} dBm`;
+    document.getElementById("kpi-p-bs2").innerText = `${p2_live.toFixed(1)} dBm`;
+
+    const chanEl = document.getElementById("kpi-channel");
+    chanEl.innerText = activeBlocked ? "NLOS (Severed)[cite: 1, 4]" : "LOS (Active)[cite: 1, 4]";
+    chanEl.style.color = activeBlocked ? "var(--danger-red)" : "var(--accent-green)";
+
+    document.getElementById("riskBS1Pct").innerText = `${risk1}%`;
+    document.getElementById("riskBS1Bar").style.width = `${risk1}%`;
+    document.getElementById("riskBS1Bar").style.background = risk1 > 60 ? "var(--danger-red)" : (risk1 > 25 ? "var(--secondary-amber)" : "var(--accent-green)");
+    document.getElementById("bs1DistText").innerText = `Distance: ${Math.round(dBS1)}px`;
+
+    document.getElementById("riskBS2Pct").innerText = `${risk2}%`;
+    document.getElementById("riskBS2Bar").style.width = `${risk2}%`;
+    document.getElementById("riskBS2Bar").style.background = risk2 > 60 ? "var(--danger-red)" : (risk2 > 25 ? "var(--secondary-amber)" : "var(--accent-green)");
+    document.getElementById("bs2DistText").innerText = `Distance: ${Math.round(dBS2)}px`;
+
+    document.getElementById("decisionDesc").innerText = statusText;
+
+    document.getElementById("step1").classList.toggle("active", true);
+    document.getElementById("step2").classList.toggle("active", isApproachingBS1 || isApproachingBS2);
+    document.getElementById("step3").classList.toggle("active", (isApproachingBS1 && activeBS === 1) || (isApproachingBS2 && activeBS === 2));
+    document.getElementById("step4").classList.toggle("active", activeBS === 2);
+
+    drawScene(blocked1, blocked2, isApproachingBS1, isApproachingBS2);
+
+    requestAnimationFrame(loop);
+  }
+
+  function drawScene(blocked1, blocked2, warn1, warn2) {
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+    // 1. Runway Clearance Boundary Indicators
+    ctx.save();
+    ctx.strokeStyle = "rgba(51, 65, 85, 0.4)";
+    ctx.lineWidth = 1;
+    ctx.setLineDash([8, 8]);
+    ctx.beginPath();
+    ctx.moveTo(50, 45);
+    ctx.lineTo(850, 45);
+    ctx.moveTo(50, 315);
+    ctx.lineTo(850, 315);
+    ctx.stroke();
+
+    // Central Horizontal Baseline Axis
+    ctx.strokeStyle = "rgba(71, 85, 105, 0.25)";
+    ctx.lineWidth = 1.5;
+    ctx.setLineDash([]);
+    ctx.beginPath();
+    ctx.moveTo(BS1.x, BS1.y);
+    ctx.lineTo(BS2.x, BS2.y);
+    ctx.stroke();
+    ctx.restore();
+
+    // 2. Camera Field of View Wedge from BS 1
+    ctx.save();
+    const fovGrad = ctx.createRadialGradient(BS1.x, BS1.y, 10, BS1.x + 250, BS1.y, 650);
+    fovGrad.addColorStop(0, "rgba(0, 240, 255, 0.20)");
+    fovGrad.addColorStop(0.7, "rgba(0, 240, 255, 0.05)");
+    fovGrad.addColorStop(1, "rgba(0, 240, 255, 0.00)");
+
+    ctx.fillStyle = fovGrad;
+    ctx.beginPath();
+    ctx.moveTo(BS1.x, BS1.y);
+    ctx.lineTo(User.x + 50, BS1.y - 140);
+    ctx.lineTo(User.x + 50, BS1.y + 140);
+    ctx.closePath();
+    ctx.fill();
+
+    ctx.strokeStyle = "rgba(0, 240, 255, 0.45)";
+    ctx.lineWidth = 1;
+    ctx.setLineDash([6, 6]);
+    ctx.beginPath();
+    ctx.moveTo(BS1.x, BS1.y);
+    ctx.lineTo(User.x + 50, BS1.y - 140);
+    ctx.moveTo(BS1.x, BS1.y);
+    ctx.lineTo(User.x + 50, BS1.y + 140);
+    ctx.stroke();
+    ctx.setLineDash([]);
+    ctx.restore();
+
+    // 3. Glowing Beams Function
+    function drawBeam(from, to, color, glow, isBlocked, isServing) {
+      ctx.save();
+      if (isServing) {
+        ctx.shadowColor = glow;
+        ctx.shadowBlur = 16;
+        ctx.lineWidth = 4.5;
+        ctx.strokeStyle = color;
+      } else {
+        ctx.lineWidth = 1.5;
+        ctx.strokeStyle = "rgba(148, 163, 184, 0.35)";
+      }
+
+      ctx.setLineDash(isBlocked || !isServing ? [6, 6] : []);
+      ctx.beginPath();
+      ctx.moveTo(from.x, from.y);
+      ctx.lineTo(to.x, to.y);
+      ctx.stroke();
+
+      if (isServing && !isBlocked) {
+        ctx.shadowBlur = 0;
+        ctx.lineWidth = 1.5;
+        ctx.strokeStyle = "#ffffff";
+        ctx.stroke();
+      }
+      ctx.restore();
+    }
+
+    // Render Perfectly Horizontal Beams
+    const colBS1 = blocked1 ? "#ff0055" : "#00f0ff";
+    const colBS2 = blocked2 ? "#ff0055" : "#ffb703";
+    drawBeam(BS1, User, colBS1, colBS1, blocked1, activeBS === 1);
+    drawBeam(BS2, User, colBS2, colBS2, blocked2, activeBS === 2);
+
+    // 4. Base Stations with Mounted Directional Cameras
+    function drawTower(x, y, label, isServing, col, camFacingRight) {
+      ctx.save();
+
+      // Mast Pole
+      ctx.fillStyle = isServing ? col : "#64748b";
+      ctx.fillRect(x - 3, y - 25, 6, 70);
+
+      // Antenna Panels
+      ctx.strokeStyle = isServing ? col : "#64748b";
+      ctx.lineWidth = 2;
+      ctx.fillStyle = "#0f172a";
+
+      ctx.strokeRect(x - 18, y - 20, 10, 40);
+      ctx.fillRect(x - 18, y - 20, 10, 40);
+
+      ctx.strokeRect(x + 8, y - 20, 10, 40);
+      ctx.fillRect(x + 8, y - 20, 10, 40);
+
+      // Mounted Camera Body
+      ctx.fillStyle = "#1e293b";
+      ctx.fillRect(x - 10, y - 44, 20, 16);
+      ctx.strokeStyle = isServing ? col : "#64748b";
+      ctx.lineWidth = 1.5;
+      ctx.strokeRect(x - 10, y - 44, 20, 16);
+
+      // Camera Lens
+      ctx.fillStyle = col;
+      ctx.beginPath();
+      if (camFacingRight) {
+        ctx.moveTo(x + 10, y - 41);
+        ctx.lineTo(x + 18, y - 45);
+        ctx.lineTo(x + 18, y - 31);
+        ctx.lineTo(x + 10, y - 35);
+      } else {
+        ctx.moveTo(x - 10, y - 35);
+        ctx.lineTo(x - 18, y - 31);
+        ctx.lineTo(x - 18, y - 45);
+        ctx.lineTo(x - 10, y - 41);
+      }
+      ctx.closePath();
+      ctx.fill();
+
+      // Labels
+      ctx.fillStyle = "#ffffff";
+      ctx.font = "bold 14px sans-serif";
+      ctx.textAlign = "center";
+      ctx.fillText(label, x, y + 62);
+      ctx.restore();
+    }
+
+    drawTower(BS1.x, BS1.y, "BS 1", activeBS === 1, "#00f0ff", true);
+    drawTower(BS2.x, BS2.y, "BS 2", activeBS === 2, "#ffb703", false);
+
+    // 5. User Figure (Centered at x: 450, y: 180)
+    ctx.save();
+    const ux = User.x;
+    const uy = User.y;
+
+    ctx.fillStyle = activeBS === 1 ? "#00f0ff" : "#ffb703";
+    ctx.shadowColor = ctx.fillStyle;
+    ctx.shadowBlur = 10;
+    ctx.fillRect(ux - 16, uy - 18, 6, 12);
+    ctx.shadowBlur = 0;
+
+    ctx.fillStyle = "#f8fafc";
+    ctx.beginPath();
+    ctx.arc(ux, uy - 32, 6.5, 0, Math.PI * 2);
+    ctx.fill();
+
+    ctx.strokeStyle = "#f8fafc";
+    ctx.lineWidth = 3.5;
+    ctx.beginPath();
+    ctx.moveTo(ux, uy - 26);
+    ctx.lineTo(ux, uy + 6);
+    ctx.lineTo(ux - 4, uy + 26);
+    ctx.moveTo(ux, uy + 6);
+    ctx.lineTo(ux + 4, uy + 26);
+    ctx.moveTo(ux, uy - 16);
+    ctx.lineTo(ux - 10, uy - 12);
+    ctx.stroke();
+
+    ctx.fillStyle = "#ffffff";
+    ctx.font = "bold 13px sans-serif";
+    ctx.textAlign = "center";
+    ctx.fillText("User (UE)", ux, uy + 44);
+    ctx.restore();
+
+    // 6. Obstacle / Pedestrian Figure
+    ctx.save();
+    const px = ped.x;
+    const py = ped.y;
+    const anyBlocked = (activeBS === 1 && blocked1) || (activeBS === 2 && blocked2);
+    const anyWarn = warn1 || warn2;
+    const pedCol = anyBlocked ? "#ff0055" : (anyWarn ? "#ffb703" : "#cbd5e1");
+
+    ctx.fillStyle = pedCol;
+    ctx.shadowColor = anyBlocked ? "#ff0055" : (anyWarn ? "#ffb703" : "transparent");
+    ctx.shadowBlur = anyBlocked || anyWarn ? 16 : 0;
+
+    // Head
+    ctx.beginPath();
+    ctx.arc(px, py - 30, 7, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Body
+    ctx.strokeStyle = pedCol;
+    ctx.lineWidth = 3.5;
+    ctx.beginPath();
+    ctx.moveTo(px, py - 23);
+    ctx.lineTo(px, py + 6);
+    ctx.lineTo(px - 9, py + 26);
+    ctx.moveTo(px, py + 6);
+    ctx.lineTo(px + 10, py + 24);
+    ctx.moveTo(px, py - 14);
+    ctx.lineTo(px - 9, py - 4);
+    ctx.moveTo(px, py - 14);
+    ctx.lineTo(px + 9, py - 4);
+    ctx.stroke();
+
+    // Look-Ahead Warning Box
+    if (anyWarn) {
+      ctx.strokeStyle = "#ffb703";
+      ctx.lineWidth = 2;
+      ctx.strokeRect(px - 22, py - 42, 44, 74);
+      ctx.fillStyle = "#ffb703";
+      ctx.font = "bold 11px sans-serif";
+      ctx.textAlign = "center";
+      ctx.fillText("Look-Ahead Risk![cite: 1, 4]", px, py - 48);
+    } else {
+      ctx.fillStyle = "#cbd5e1";
+      ctx.font = "bold 12px sans-serif";
+      ctx.textAlign = "center";
+      ctx.fillText("Obstacle[cite: 1, 4]", px, py - 42);
+    }
+
+    ctx.restore();
+  }
+
+  loop();
+</script>
+
+</body>
+</html>
