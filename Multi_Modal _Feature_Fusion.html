@@ -1,0 +1,507 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Multi-Modal Neural Feature Fusion & Beam Prediction Pipeline</title>
+    <!-- Chart.js for Neural Activation & Codebook Probabilities -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <!-- Lucide Icons -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <style>
+        :root {
+            --bg-dark: #080c14;
+            --card-bg: #0f172a;
+            --border-color: #1e293b;
+            --text-main: #f8fafc;
+            --text-muted: #94a3b8;
+            --accent-blue: #38bdf8;
+            --accent-green: #34d399;
+            --accent-amber: #fbbf24;
+            --accent-purple: #c084fc;
+            --accent-red: #f87171;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            font-family: 'Segoe UI', Roboto, -apple-system, BlinkMacSystemFont, sans-serif;
+        }
+
+        body {
+            background-color: var(--bg-dark);
+            color: var(--text-main);
+            padding: 24px;
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+            min-height: 100vh;
+        }
+
+        header {
+            background: var(--card-bg);
+            padding: 16px 24px;
+            border-radius: 12px;
+            border: 1px solid var(--border-color);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        h1 {
+            font-size: 1.2rem;
+            font-weight: 600;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .tag {
+            background: rgba(192, 132, 252, 0.1);
+            color: var(--accent-purple);
+            font-size: 0.75rem;
+            padding: 4px 8px;
+            border-radius: 6px;
+            border: 1px solid rgba(192, 132, 252, 0.2);
+        }
+
+        .main-layout {
+            display: grid;
+            grid-template-columns: 320px 1fr 340px;
+            gap: 20px;
+        }
+
+        @media (max-width: 1200px) {
+            .main-layout {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        .card {
+            background: var(--card-bg);
+            border-radius: 12px;
+            border: 1px solid var(--border-color);
+            padding: 16px;
+            display: flex;
+            flex-direction: column;
+            gap: 14px;
+        }
+
+        .card-header {
+            font-size: 0.9rem;
+            font-weight: 600;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            border-bottom: 1px solid var(--border-color);
+            padding-bottom: 8px;
+        }
+
+        .control-group {
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+        }
+
+        label {
+            font-size: 0.8rem;
+            color: var(--text-muted);
+            display: flex;
+            justify-content: space-between;
+        }
+
+        input[type="range"], select {
+            background: #020617;
+            border: 1px solid var(--border-color);
+            color: var(--text-main);
+            padding: 8px 10px;
+            border-radius: 6px;
+            font-size: 0.85rem;
+            outline: none;
+        }
+
+        .toggle-btn {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            background: #020617;
+            border: 1px solid var(--border-color);
+            padding: 8px 12px;
+            border-radius: 6px;
+            cursor: pointer;
+            user-select: none;
+            font-size: 0.8rem;
+        }
+
+        .toggle-btn.active {
+            border-color: var(--accent-purple);
+            background: rgba(192, 132, 252, 0.1);
+        }
+
+        .pipeline-container {
+            position: relative;
+            width: 100%;
+            height: 480px;
+            background: #020617;
+            border-radius: 8px;
+            overflow: hidden;
+            border: 1px solid rgba(255, 255, 255, 0.05);
+        }
+
+        canvas {
+            width: 100%;
+            height: 100%;
+            display: block;
+        }
+
+        .metric-card {
+            background: #020617;
+            padding: 10px 12px;
+            border-radius: 8px;
+            border: 1px solid var(--border-color);
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+        }
+
+        .metric-val {
+            font-size: 1.1rem;
+            font-weight: bold;
+            color: var(--accent-purple);
+        }
+
+        .metric-lbl {
+            font-size: 0.7rem;
+            color: var(--text-muted);
+        }
+
+        .vector-box {
+            font-family: monospace;
+            font-size: 0.72rem;
+            background: #020617;
+            padding: 8px;
+            border-radius: 6px;
+            border: 1px solid var(--border-color);
+            color: var(--accent-green);
+            word-break: break-all;
+        }
+
+        .chart-box {
+            height: 180px;
+            position: relative;
+        }
+    </style>
+</head>
+<body>
+
+    <header>
+        <h1>
+            <i data-lucide="cpu"></i>
+            Multi-Modal Feature Fusion & Deep Learning Pipeline
+            <span class="tag">DeepSense 6G Architecture</span>
+        </h1>
+        <div style="font-size:0.8rem; color:var(--text-muted)">
+            Figure 2 Architecture Simulator
+        </div>
+    </header>
+
+    <div class="main-layout">
+        <!-- Input Layer Controls -->
+        <div class="card">
+            <div class="card-header">
+                <span><i data-lucide="sliders"></i> Sensory Data Inputs</span>
+            </div>
+
+            <div class="control-group">
+                <label>Normalized Latitude [g_u1] <span id="latVal">0.52</span></label>
+                <input type="range" id="latSlider" min="0" max="1" step="0.01" value="0.52">
+            </div>
+
+            <div class="control-group">
+                <label>Normalized Longitude [g_u2] <span id="lonVal">0.74</span></label>
+                <input type="range" id="lonSlider" min="0" max="1" step="0.01" value="0.74">
+            </div>
+
+            <div class="control-group">
+                <label>Camera Lighting Condition</label>
+                <select id="lightingSelect">
+                    <option value="day">Daytime (Clear RGB Image Features)</option>
+                    <option value="night">Nighttime (Low-Light Feature Loss)</option>
+                </select>
+            </div>
+
+            <div class="toggle-btn" id="occlusionBtn">
+                <span>Simulate Target Visual Blockage</span>
+                <i data-lucide="eye-off" style="width:14px; height:14px;"></i>
+            </div>
+
+            <div class="control-group">
+                <label>ResNet-50 Feature Extraction Vector [T x 1]</label>
+                <div class="vector-box" id="resnetVec">[0.82, 0.14, 0.95, 0.03, 0.67, 0.41...]</div>
+            </div>
+
+            <div class="control-group">
+                <label>Normalized Position Vector [2 x 1]</label>
+                <div class="vector-box" id="posVec" style="color:var(--accent-blue)">[0.52, 0.74]</div>
+            </div>
+        </div>
+
+        <!-- Interactive Neural Fusion Pipeline Map -->
+        <div class="card">
+            <div class="card-header">
+                <span><i data-lucide="network"></i> Late-Stage Fusion Architecture Flow</span>
+                <span style="font-size:0.75rem; color:var(--accent-green);" id="fusionStatus">Active Fusion Mode</span>
+            </div>
+            <div class="pipeline-container">
+                <canvas id="pipelineCanvas"></canvas>
+            </div>
+        </div>
+
+        <!-- Classifier Output & Analysis -->
+        <div class="card">
+            <div class="card-header">
+                <span><i data-lucide="activity"></i> Dense MLP Beam Classifier</span>
+            </div>
+
+            <div class="metric-card">
+                <span class="metric-lbl">Concatenated Vector Size [(T+2) x 1]</span>
+                <span class="metric-val" id="concatSizeVal">2048 + 2 = 2050 Dimensions</span>
+            </div>
+
+            <div class="metric-card">
+                <span class="metric-lbl">Optimal Top-1 Predicted Beam</span>
+                <span class="metric-val" id="top1BeamVal" style="color:var(--accent-green)">Beam #14</span>
+            </div>
+
+            <!-- Softmax Probability Distribution Chart -->
+            <div class="card-header" style="margin-top:10px;">
+                <span>Softmax Beam Probabilities P(M)</span>
+            </div>
+            <div class="chart-box">
+                <canvas id="probChart"></canvas>
+            </div>
+
+            <div class="metric-card" style="margin-top:auto;">
+                <span class="metric-lbl">Theoretical Classification Loss (Cross-Entropy)</span>
+                <span class="metric-val" id="lossVal" style="color:var(--accent-amber)">0.124</span>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        lucide.createIcons();
+
+        const pCanvas = document.getElementById('pipelineCanvas');
+        const pCtx = pCanvas.getContext('2d');
+
+        let inputs = {
+            lat: 0.52,
+            lon: 0.74,
+            lighting: 'day',
+            occluded: false
+        };
+
+        // Chart setup
+        const chartCtx = document.getElementById('probChart').getContext('2d');
+        const probChart = new Chart(chartCtx, {
+            type: 'bar',
+            data: {
+                labels: Array.from({length: 32}, (_, i) => i + 1),
+                datasets: [{
+                    data: new Array(32).fill(0.03),
+                    backgroundColor: 'rgba(192, 132, 252, 0.4)',
+                    borderColor: '#c084fc',
+                    borderWidth: 1
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: { legend: { display: false } },
+                scales: {
+                    x: { display: false },
+                    y: { display: false, min: 0, max: 1 }
+                }
+            }
+        });
+
+        function resizeCanvas() {
+            pCanvas.width = pCanvas.parentElement.clientWidth;
+            pCanvas.height = pCanvas.parentElement.clientHeight;
+        }
+        window.addEventListener('resize', resizeCanvas);
+        resizeCanvas();
+
+        // Control Listeners
+        document.getElementById('latSlider').addEventListener('input', (e) => {
+            inputs.lat = parseFloat(e.target.value);
+            document.getElementById('latVal').innerText = inputs.lat.toFixed(2);
+            updatePipeline();
+        });
+
+        document.getElementById('lonSlider').addEventListener('input', (e) => {
+            inputs.lon = parseFloat(e.target.value);
+            document.getElementById('lonVal').innerText = inputs.lon.toFixed(2);
+            updatePipeline();
+        });
+
+        document.getElementById('lightingSelect').addEventListener('change', (e) => {
+            inputs.lighting = e.target.value;
+            updatePipeline();
+        });
+
+        const occBtn = document.getElementById('occlusionBtn');
+        occBtn.addEventListener('click', () => {
+            inputs.occluded = !inputs.occluded;
+            occBtn.classList.toggle('active', inputs.occluded);
+            updatePipeline();
+        });
+
+        let pulseOffset = 0;
+
+        function updatePipeline() {
+            // Update Vectors
+            document.getElementById('posVec').innerText = `[${inputs.lat.toFixed(2)}, ${inputs.lon.toFixed(2)}]`;
+            
+            let visQuality = inputs.lighting === 'day' && !inputs.occluded ? 0.9 : 0.2;
+            let resVec = Array.from({length: 6}, () => (Math.random() * visQuality).toFixed(2));
+            document.getElementById('resnetVec').innerText = `[${resVec.join(', ')}...]`;
+
+            // Compute Predicted Beam Index from fused data
+            let combinedFactor = (inputs.lat * 0.6 + inputs.lon * 0.4) * 31;
+            if (inputs.occluded) {
+                // Reliance purely on position vector when vision is blocked
+                combinedFactor = inputs.lat * 31;
+            }
+            let predBeam = Math.min(31, Math.max(0, Math.round(combinedFactor)));
+
+            document.getElementById('top1BeamVal').innerText = `Beam #${predBeam + 1}`;
+            document.getElementById('lossVal').innerText = (0.05 + (1 - visQuality) * 0.15).toFixed(3);
+
+            // Update Softmax Chart
+            let probs = new Array(32).fill(0.01);
+            probs[predBeam] = 0.82;
+            if (predBeam > 0) probs[predBeam - 1] = 0.25;
+            if (predBeam < 31) probs[predBeam + 1] = 0.25;
+
+            probChart.data.datasets[0].data = probs;
+            probChart.data.datasets[0].backgroundColor = probs.map((_, i) => i === predBeam ? '#34d399' : 'rgba(192, 132, 252, 0.3)');
+            probChart.update();
+        }
+
+        function renderPipelineGraph() {
+            pCtx.clearRect(0, 0, pCanvas.width, pCanvas.height);
+
+            let w = pCanvas.width;
+            let h = pCanvas.height;
+
+            // Nodes Coordinates
+            let imgBox = { x: 40, y: 80, w: 90, h: 60 };
+            let posBox = { x: 40, y: 320, w: 90, h: 50 };
+
+            let cnnBox = { x: 170, y: 70, w: 100, h: 80 };
+            let normBox = { x: 170, y: 320, w: 100, h: 50 };
+
+            let concatBox = { x: 320, y: 190, w: 40, h: 120 };
+            let mlpBox = { x: 410, y: 170, w: 100, h: 160 };
+
+            // Draw Connection Lines with Pulse Effect
+            pulseOffset = (pulseOffset + 1) % 20;
+
+            pCtx.strokeStyle = 'rgba(56, 189, 248, 0.3)';
+            pCtx.lineWidth = 2;
+            pCtx.setLineDash([6, 6]);
+            pCtx.lineDashOffset = -pulseOffset;
+
+            // Vision path
+            pCtx.beginPath();
+            pCtx.moveTo(imgBox.x + imgBox.w, imgBox.y + 30);
+            pCtx.lineTo(cnnBox.x, cnnBox.y + 40);
+            pCtx.lineTo(concatBox.x, concatBox.y + 30);
+            pCtx.stroke();
+
+            // Position path
+            pCtx.strokeStyle = 'rgba(192, 132, 252, 0.3)';
+            pCtx.beginPath();
+            pCtx.moveTo(posBox.x + posBox.w, posBox.y + 25);
+            pCtx.lineTo(normBox.x, normBox.y + 25);
+            pCtx.lineTo(concatBox.x, concatBox.y + 90);
+            pCtx.stroke();
+
+            // Concat to MLP
+            pCtx.strokeStyle = 'rgba(52, 211, 153, 0.4)';
+            pCtx.beginPath();
+            pCtx.moveTo(concatBox.x + concatBox.w, concatBox.y + 60);
+            pCtx.lineTo(mlpBox.x, mlpBox.y + 80);
+            pCtx.stroke();
+
+            pCtx.setLineDash([]);
+
+            // Draw Block Elements
+            // 1. RGB Camera Input
+            pCtx.fillStyle = inputs.occluded ? '#3f1d24' : '#0f2942';
+            pCtx.strokeStyle = inputs.occluded ? '#f87171' : '#38bdf8';
+            pCtx.fillRect(imgBox.x, imgBox.y, imgBox.w, imgBox.h);
+            pCtx.strokeRect(imgBox.x, imgBox.y, imgBox.w, imgBox.h);
+            pCtx.fillStyle = '#fff';
+            pCtx.font = '11px sans-serif';
+            pCtx.fillText(inputs.occluded ? 'RGB (Occluded)' : 'RGB Image X_u', imgBox.x + 8, imgBox.y + 34);
+
+            // 2. Position Input
+            pCtx.fillStyle = '#2e1065';
+            pCtx.strokeStyle = '#c084fc';
+            pCtx.fillRect(posBox.x, posBox.y, posBox.w, posBox.h);
+            pCtx.strokeRect(posBox.x, posBox.y, posBox.w, posBox.h);
+            pCtx.fillStyle = '#fff';
+            pCtx.fillText('GPS [Lat, Lon]', posBox.x + 10, posBox.y + 30);
+
+            // 3. ResNet-50 Feature Extractor
+            pCtx.fillStyle = '#1e293b';
+            pCtx.strokeStyle = '#64748b';
+            pCtx.fillRect(cnnBox.x, cnnBox.y, cnnBox.w, cnnBox.h);
+            pCtx.strokeRect(cnnBox.x, cnnBox.y, cnnBox.w, cnnBox.h);
+            pCtx.fillStyle = '#38bdf8';
+            pCtx.fillText('ResNet-50 CNN', cnnBox.x + 12, cnnBox.y + 35);
+            pCtx.fillStyle = '#94a3b8';
+            pCtx.font = '9px monospace';
+            pCtx.fillText('Features [T x 1]', cnnBox.x + 10, cnnBox.y + 55);
+
+            // 4. Position Normalizer
+            pCtx.fillStyle = '#1e293b';
+            pCtx.strokeStyle = '#64748b';
+            pCtx.fillRect(normBox.x, normBox.y, normBox.w, normBox.h);
+            pCtx.strokeRect(normBox.x, normBox.y, normBox.w, normBox.h);
+            pCtx.fillStyle = '#c084fc';
+            pCtx.font = '11px sans-serif';
+            pCtx.fillText('Data Norm', normBox.x + 20, normBox.y + 30);
+
+            // 5. Concatenate Layer
+            pCtx.fillStyle = '#064e3b';
+            pCtx.strokeStyle = '#34d399';
+            pCtx.fillRect(concatBox.x, concatBox.y, concatBox.w, concatBox.h);
+            pCtx.strokeRect(concatBox.x, concatBox.y, concatBox.w, concatBox.h);
+            pCtx.fillStyle = '#fff';
+            pCtx.fillText('Concat', concatBox.x + 2, concatBox.y + 65);
+
+            // 6. MLP Classifier
+            pCtx.fillStyle = '#0f172a';
+            pCtx.strokeStyle = '#34d399';
+            pCtx.fillRect(mlpBox.x, mlpBox.y, mlpBox.w, mlpBox.h);
+            pCtx.strokeRect(mlpBox.x, mlpBox.y, mlpBox.w, mlpBox.h);
+            pCtx.fillStyle = '#34d399';
+            pCtx.fillText('Classifier MLP', mlpBox.x + 14, mlpBox.y + 30);
+            pCtx.fillStyle = '#94a3b8';
+            pCtx.font = '9px monospace';
+            pCtx.fillText('Dense Layer 1 (256)', mlpBox.x + 6, mlpBox.y + 60);
+            pCtx.fillText('Dense Layer 2 (256)', mlpBox.x + 6, mlpBox.y + 90);
+            pCtx.fillText('Softmax (32 Beams)', mlpBox.x + 6, mlpBox.y + 120);
+
+            requestAnimationFrame(renderPipelineGraph);
+        }
+
+        updatePipeline();
+        renderPipelineGraph();
+    </script>
+</body>
+</html>
