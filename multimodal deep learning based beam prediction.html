@@ -1,0 +1,624 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>THz ISAC Multimodal MoE Beam Prediction</title>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <style>
+    :root {
+      --bg: #0b0f19;
+      --panel: #131a29;
+      --border: #1f2c42;
+      --primary: #38bdf8;
+      --purple: #c084fc;
+      --green: #34d399;
+      --red: #f87171;
+      --text: #f8fafc;
+      --text-dim: #94a3b8;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
+    body { background: var(--bg); color: var(--text); padding: 24px 16px; display: flex; justify-content: center; }
+    
+    .shell {
+      width: 100%;
+      max-width: 1100px;
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+    }
+
+    header {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-end;
+      padding-bottom: 12px;
+      border-bottom: 1px solid var(--border);
+    }
+    header h1 { font-size: 20px; font-weight: 700; color: #fff; letter-spacing: -0.3px; }
+    header p { font-size: 13px; color: var(--text-dim); margin-top: 2px; }
+    .badge {
+      font-size: 11px;
+      padding: 4px 10px;
+      border-radius: 20px;
+      font-weight: 600;
+      background: rgba(56, 189, 248, 0.1);
+      color: var(--primary);
+      border: 1px solid rgba(56, 189, 248, 0.25);
+    }
+
+    .main-grid {
+      display: grid;
+      grid-template-columns: 1fr 320px;
+      gap: 16px;
+    }
+    @media (max-width: 900px) {
+      .main-grid { grid-template-columns: 1fr; }
+    }
+
+    .card {
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 16px;
+      display: flex;
+      flex-direction: column;
+    }
+
+    .card-label {
+      font-size: 11.5px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.8px;
+      color: var(--text-dim);
+      margin-bottom: 12px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .canvas-box {
+      border-radius: 8px;
+      overflow: hidden;
+      border: 1px solid var(--border);
+      background: #060911;
+      position: relative;
+    }
+    canvas#scene { width: 100%; height: 260px; display: block; cursor: grab; }
+    canvas#scene.dragging { cursor: grabbing; }
+
+    .controls-row {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 10px;
+      margin-top: 14px;
+    }
+    @media (max-width: 720px) {
+      .controls-row { grid-template-columns: 1fr 1fr; }
+    }
+    .field { display: flex; flex-direction: column; gap: 4px; }
+    .field label { font-size: 11px; color: var(--text-dim); font-weight: 500; }
+    select, input[type=range] {
+      background: #0b0f19;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      color: #fff;
+      padding: 6px 10px;
+      font-size: 12px;
+      outline: none;
+    }
+    input[type=range] { padding: 0; accent-color: var(--primary); height: 28px; }
+
+    .kpi-row {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 10px;
+      margin-top: 12px;
+    }
+    .kpi {
+      background: #0b0f19;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 10px;
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+    }
+    .kpi-title { font-size: 10px; color: var(--text-dim); text-transform: uppercase; font-weight: 600; }
+    .kpi-value { font-size: 15px; font-weight: 700; color: #fff; }
+
+    .gating-stack {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      height: 100%;
+    }
+    .expert-card {
+      background: #0b0f19;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 12px;
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+    .expert-meta {
+      display: flex;
+      justify-content: space-between;
+      font-size: 12px;
+      font-weight: 600;
+    }
+    .bar-bg {
+      height: 7px;
+      width: 100%;
+      background: #1e293b;
+      border-radius: 4px;
+      overflow: hidden;
+    }
+    .bar-val { height: 100%; transition: width 0.25s ease-out; }
+    .expert-desc { font-size: 11px; color: var(--text-dim); line-height: 1.4; }
+
+    .status-card {
+      background: #0b0f19;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 12px;
+      margin-top: auto;
+    }
+
+    .chart-box { height: 170px; width: 100%; position: relative; }
+  </style>
+</head>
+<body>
+
+<div class="shell">
+
+  <header>
+    <div>
+      <h1>THz ISAC Beam Prediction Simulation</h1>
+      <p>Multimodal Mixture of Experts (MoE) Architecture • DeepSense6G Testbed</p>
+    </div>
+    <div class="badge">Slow-Motion Mode</div>
+  </header>
+
+  <div class="main-grid">
+
+    <div style="display: flex; flex-direction: column; gap: 14px;">
+      
+      <div class="card">
+        <div class="card-label">
+          <span>Physical Downlink Scene (V2I)</span>
+          <span style="font-weight: normal; color: var(--primary);">Drag vehicle to manually steer</span>
+        </div>
+
+        <div class="canvas-box">
+          <canvas id="scene" width="760" height="260"></canvas>
+        </div>
+
+        <div class="controls-row">
+          <div class="field">
+            <label>Lighting / Scenario</label>
+            <select id="envSelect">
+              <option value="day">Daytime (Scenario 8 - Clear)</option>
+              <option value="night">Nighttime (Scenario 2 - Dark)</option>
+              <option value="fog">Heavy Fog / Occlusion</option>
+            </select>
+          </div>
+
+          <div class="field">
+            <label>GPS Jitter / Noise</label>
+            <input type="range" id="gpsSlider" min="0.5" max="8.0" step="0.5" value="1.5">
+          </div>
+
+          <div class="field">
+            <label>Model Architecture</label>
+            <select id="modelSelect">
+              <option value="moe">Multimodal MoE (Adaptive)</option>
+              <option value="concat">Concatenation (Static 50/50)</option>
+              <option value="vision">Vision-Only Baseline</option>
+              <option value="gps">Position-Only Baseline</option>
+            </select>
+          </div>
+
+          <div class="field">
+            <label>Cruising Speed</label>
+            <select id="speedSelect">
+              <option value="0.4">Slow Cruising (0.4x)</option>
+              <option value="0.2">Ultra-Slow (0.2x)</option>
+              <option value="0.8">Normal Speed (0.8x)</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="kpi-row">
+          <div class="kpi">
+            <span class="kpi-title">Optimal Beam (Ground Truth)</span>
+            <span id="kpi-true" class="kpi-value" style="color: var(--primary);">#32 / 64</span>
+          </div>
+          <div class="kpi">
+            <span class="kpi-title">Predicted Beam</span>
+            <span id="kpi-pred" class="kpi-value" style="color: var(--purple);">#32</span>
+          </div>
+          <div class="kpi">
+            <span class="kpi-title">Codebook Alignment</span>
+            <span id="kpi-diff" class="kpi-value" style="color: var(--green);">Top-1 Match</span>
+          </div>
+          <div class="kpi">
+            <span class="kpi-title">Received Beam Gain</span>
+            <span id="kpi-gain" class="kpi-value">-56.2 dBm</span>
+          </div>
+        </div>
+
+      </div>
+
+      <div class="card">
+        <div class="card-label">Received Beam Gain Stream (Continuously Updated)</div>
+        <div class="chart-box">
+          <canvas id="chartCanvas"></canvas>
+        </div>
+      </div>
+
+    </div>
+
+    <div class="card">
+      <div class="card-label">
+        <span>Gating Network (MoE)</span>
+        <span style="color: var(--purple);">Softmax</span>
+      </div>
+
+      <div class="gating-stack">
+        
+        <div class="expert-card">
+          <div class="expert-meta">
+            <span style="color: var(--primary);">Vision Expert (ResNet-18)</span>
+            <span id="w-vision-num">78%</span>
+          </div>
+          <div class="bar-bg">
+            <div id="w-vision-bar" class="bar-val" style="width: 78%; background: var(--primary);"></div>
+          </div>
+          <p class="expert-desc">Sensitive to lighting/nighttime; high accuracy in daylight.</p>
+        </div>
+
+        <div class="expert-card">
+          <div class="expert-meta">
+            <span style="color: var(--green);">GPS Expert (MLP)</span>
+            <span id="w-gps-num">22%</span>
+          </div>
+          <div class="bar-bg">
+            <div id="w-gps-bar" class="bar-val" style="width: 22%; background: var(--green);"></div>
+          </div>
+          <p class="expert-desc">Unaffected by darkness; bounded by GPS measurement jitter.</p>
+        </div>
+
+        <div class="status-card">
+          <span style="font-size: 11px; font-weight: 700; color: #fff; display: block; margin-bottom: 4px;">Dynamic Adaptation Status</span>
+          <p id="moe-status-desc" style="font-size: 11.5px; line-height: 1.5; color: var(--text-dim);">
+            Daytime conditions: Camera features provide sub-degree precision, receiving majority gating weight.
+          </p>
+        </div>
+
+      </div>
+    </div>
+
+  </div>
+
+</div>
+
+<script>
+  const TOTAL_BEAMS = 64;
+  const BS = { x: 380, y: 35 };
+  let vehicle = { x: 180, y: 195, vx: 0.4, w: 52, h: 22 };
+
+  let currentEnv = "day";
+  let fusionMode = "moe";
+  let gpsNoise = 1.5;
+  let isDragging = false;
+  let dragOffset = { x: 0, y: 0 };
+
+  const MAX_POINTS = 55;
+  const labels = Array(MAX_POINTS).fill("");
+  const gainData = Array(MAX_POINTS).fill(-56.0);
+
+  const chart = new Chart(document.getElementById("chartCanvas").getContext("2d"), {
+    type: "line",
+    data: {
+      labels: labels,
+      datasets: [{
+        label: "Received Power (dBm)",
+        data: gainData,
+        borderColor: "#38bdf8",
+        borderWidth: 2,
+        pointRadius: 0,
+        tension: 0.2
+      }]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      animation: false,
+      scales: {
+        y: {
+          min: -95,
+          max: -50,
+          grid: { color: "#1e293b" },
+          ticks: { color: "#64748b", font: { size: 10 } }
+        },
+        x: { display: false }
+      },
+      plugins: {
+        legend: { display: false }
+      }
+    }
+  });
+
+  function getOptimalBeam(x, y) {
+    const angle = Math.atan2(x - BS.x, y - BS.y);
+    const maxAngle = Math.PI / 3;
+    let norm = (angle + maxAngle) / (2 * maxAngle);
+    norm = Math.max(0, Math.min(1, norm));
+    return Math.round(norm * (TOTAL_BEAMS - 1)) + 1;
+  }
+
+  function inferMoE(trueBeam) {
+    let vNoise = 0, vScore = 3.6;
+    if (currentEnv === "day") {
+      vNoise = (Math.random() - 0.5) * 0.7;
+      vScore = 3.6;
+    } else if (currentEnv === "night") {
+      vNoise = (Math.random() - 0.5) * 6.5;
+      vScore = 1.2;
+    } else if (currentEnv === "fog") {
+      vNoise = (Math.random() - 0.5) * 12.0;
+      vScore = 0.2;
+    }
+
+    const gNoise = (Math.random() - 0.5) * (gpsNoise * 2.2);
+    const gScore = Math.max(0.1, 4.0 - (gpsNoise * 0.7));
+
+    let wV, wG;
+    if (fusionMode === "moe") {
+      const eV = Math.exp(vScore);
+      const eG = Math.exp(gScore);
+      wV = eV / (eV + eG);
+      wG = eG / (eV + eG);
+    } else if (fusionMode === "concat") {
+      wV = 0.5; wG = 0.5;
+    } else if (fusionMode === "vision") {
+      wV = 1.0; wG = 0.0;
+    } else {
+      wV = 0.0; wG = 1.0;
+    }
+
+    const predBeam = Math.max(1, Math.min(TOTAL_BEAMS, Math.round(wV * (trueBeam + vNoise) + wG * (trueBeam + gNoise))));
+    const diff = Math.abs(predBeam - trueBeam);
+    const penalty = diff === 0 ? 0 : Math.min(36, 6 + Math.pow(diff, 1.4) * 2.2);
+    const gain = -56.0 - penalty + (Math.random() - 0.5) * 0.5;
+
+    return { trueBeam, predBeam, diff, gain, wV, wG };
+  }
+
+  const canvas = document.getElementById("scene");
+  const ctx = canvas.getContext("2d");
+
+  function getCoords(e) {
+    const r = canvas.getBoundingClientRect();
+    const cx = e.touches ? e.touches[0].clientX : e.clientX;
+    const cy = e.touches ? e.touches[0].clientY : e.clientY;
+    return {
+      x: (cx - r.left) * (canvas.width / r.width),
+      y: (cy - r.top) * (canvas.height / r.height)
+    };
+  }
+
+  function onDown(e) {
+    const p = getCoords(e);
+    if (Math.abs(p.x - vehicle.x) < 45 && Math.abs(p.y - vehicle.y) < 30) {
+      isDragging = true;
+      dragOffset.x = p.x - vehicle.x;
+      dragOffset.y = p.y - vehicle.y;
+      canvas.classList.add("dragging");
+    }
+  }
+
+  function onMove(e) {
+    if (!isDragging) return;
+    const p = getCoords(e);
+    vehicle.x = Math.max(60, Math.min(canvas.width - 60, p.x - dragOffset.x));
+    vehicle.y = Math.max(150, Math.min(220, p.y - dragOffset.y));
+  }
+
+  function onUp() {
+    isDragging = false;
+    canvas.classList.remove("dragging");
+  }
+
+  canvas.addEventListener("mousedown", onDown);
+  window.addEventListener("mousemove", onMove);
+  window.addEventListener("mouseup", onUp);
+  canvas.addEventListener("touchstart", onDown, { passive: true });
+  window.addEventListener("touchmove", onMove, { passive: true });
+  window.addEventListener("touchend", onUp);
+
+  document.getElementById("envSelect").onchange = (e) => currentEnv = e.target.value;
+  document.getElementById("modelSelect").onchange = (e) => fusionMode = e.target.value;
+  document.getElementById("gpsSlider").oninput = (e) => gpsNoise = parseFloat(e.target.value);
+  document.getElementById("speedSelect").onchange = (e) => {
+    const spd = parseFloat(e.target.value);
+    vehicle.vx = (vehicle.vx < 0 ? -1 : 1) * spd;
+  };
+
+  let frameCounter = 0;
+
+  function loop() {
+    if (!isDragging) {
+      vehicle.x += vehicle.vx;
+      if (vehicle.x > canvas.width - 70) {
+        vehicle.x = canvas.width - 70;
+        vehicle.vx = -Math.abs(vehicle.vx);
+      } else if (vehicle.x < 70) {
+        vehicle.x = 70;
+        vehicle.vx = Math.abs(vehicle.vx);
+      }
+    }
+
+    const opt = getOptimalBeam(vehicle.x, vehicle.y);
+    const res = inferMoE(opt);
+
+    frameCounter++;
+    if (frameCounter % 6 === 0) {
+      gainData.push(res.gain);
+      gainData.shift();
+      chart.update();
+    }
+
+    document.getElementById("kpi-true").innerText = `#${res.trueBeam} / ${TOTAL_BEAMS}`;
+    document.getElementById("kpi-pred").innerText = `#${res.predBeam}`;
+    document.getElementById("kpi-gain").innerText = `${res.gain.toFixed(1)} dBm`;
+
+    const diffEl = document.getElementById("kpi-diff");
+    if (res.diff === 0) {
+      diffEl.innerText = "Top-1 Match";
+      diffEl.style.color = "var(--green)";
+    } else if (res.diff <= 2) {
+      diffEl.innerText = `±${res.diff} Beams (Top-2)`;
+      diffEl.style.color = "#f59e0b";
+    } else {
+      diffEl.innerText = `Misaligned (${res.diff} Off)`;
+      diffEl.style.color = "var(--red)";
+    }
+
+    const vPct = Math.round(res.wV * 100);
+    const gPct = 100 - vPct;
+    document.getElementById("w-vision-bar").style.width = vPct + "%";
+    document.getElementById("w-gps-bar").style.width = gPct + "%";
+    document.getElementById("w-vision-num").innerText = vPct + "%";
+    document.getElementById("w-gps-num").innerText = gPct + "%";
+
+    const desc = document.getElementById("moe-status-desc");
+    if (fusionMode !== "moe") {
+      desc.innerText = "Static baseline mode: Modality weights are constant and cannot adapt to dynamic environmental degradation.";
+    } else if (currentEnv === "night" || currentEnv === "fog") {
+      desc.innerText = "Low visibility detected: Camera features are suppressed by the gating network, prioritizing GPS telemetry.";
+    } else {
+      desc.innerText = "Clear conditions: Camera features provide sub-degree resolution, receiving dominant fusion weight.";
+    }
+
+    render(res.predBeam);
+
+    requestAnimationFrame(loop);
+  }
+
+  function render(predBeam) {
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+    // Weather Overlay
+    if (currentEnv === "night") {
+      ctx.fillStyle = "rgba(4, 7, 18, 0.72)";
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+    } else if (currentEnv === "fog") {
+      ctx.fillStyle = "rgba(100, 116, 139, 0.35)";
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+    }
+
+    // Roadway
+    ctx.fillStyle = "#151d2d";
+    ctx.fillRect(0, 160, canvas.width, 85);
+    ctx.strokeStyle = "#334155";
+    ctx.lineWidth = 1.5;
+    ctx.setLineDash([16, 14]);
+    ctx.beginPath();
+    ctx.moveTo(0, 202);
+    ctx.lineTo(canvas.width, 202);
+    ctx.stroke();
+    ctx.setLineDash([]);
+
+    // 64-Beam Codebook Grid Lines
+    ctx.strokeStyle = "rgba(56, 189, 248, 0.05)";
+    ctx.lineWidth = 1;
+    const maxA = Math.PI / 3;
+    for (let i = 0; i < TOTAL_BEAMS; i += 4) {
+      const a = -maxA + (i / (TOTAL_BEAMS - 1)) * (2 * maxA);
+      ctx.beginPath();
+      ctx.moveTo(BS.x, BS.y + 12);
+      ctx.lineTo(BS.x + Math.sin(a) * 230, BS.y + Math.cos(a) * 230);
+      ctx.stroke();
+    }
+
+    // ACTIVE PREDICTED THZ BEAM (Cone + Central Line)
+    const theta = -maxA + ((predBeam - 1) / (TOTAL_BEAMS - 1)) * (2 * maxA);
+    const targetDistance = 210;
+    const targetX = BS.x + Math.sin(theta) * targetDistance;
+    const targetY = BS.y + Math.cos(theta) * targetDistance;
+
+    // Beam Cone
+    ctx.save();
+    ctx.fillStyle = "rgba(192, 132, 252, 0.28)";
+    ctx.beginPath();
+    ctx.moveTo(BS.x, BS.y + 12);
+    ctx.lineTo(targetX - 20, targetY);
+    ctx.lineTo(targetX + 20, targetY);
+    ctx.closePath();
+    ctx.fill();
+
+    // Central Sharp Directional Core
+    ctx.strokeStyle = "#c084fc";
+    ctx.lineWidth = 3;
+    ctx.beginPath();
+    ctx.moveTo(BS.x, BS.y + 12);
+    ctx.lineTo(targetX, targetY);
+    ctx.stroke();
+    ctx.restore();
+
+    // Roadside Base Station
+    ctx.save();
+    ctx.fillStyle = "#38bdf8";
+    ctx.beginPath();
+    ctx.arc(BS.x, BS.y, 7, 0, Math.PI * 2);
+    ctx.fill();
+
+    ctx.strokeStyle = "#64748b";
+    ctx.lineWidth = 2.5;
+    ctx.beginPath();
+    ctx.moveTo(BS.x - 8, BS.y + 20);
+    ctx.lineTo(BS.x, BS.y);
+    ctx.lineTo(BS.x + 8, BS.y + 20);
+    ctx.stroke();
+
+    ctx.fillStyle = "#94a3b8";
+    ctx.font = "11px sans-serif";
+    ctx.textAlign = "center";
+    ctx.fillText("Roadside THz BS", BS.x, BS.y - 12);
+    ctx.restore();
+
+    // Vehicle (Standard Rectangles for 100% browser compatibility)
+    ctx.save();
+    const cx = vehicle.x;
+    const cy = vehicle.y;
+
+    // Body
+    ctx.fillStyle = "#0284c7";
+    ctx.fillRect(cx - vehicle.w / 2, cy - vehicle.h / 2, vehicle.w, vehicle.h);
+
+    // Cabin
+    ctx.fillStyle = "#0369a1";
+    ctx.fillRect(cx - 14, cy - vehicle.h / 2 + 2, 28, vehicle.h - 4);
+
+    // GPS Sensor Dot
+    ctx.fillStyle = "#34d399";
+    ctx.beginPath();
+    ctx.arc(cx, cy - vehicle.h / 2 - 2, 3.5, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Label
+    ctx.fillStyle = "#f8fafc";
+    ctx.font = "bold 11px sans-serif";
+    ctx.textAlign = "center";
+    ctx.fillText("UE (Car)", cx, cy + 24);
+    ctx.restore();
+  }
+
+  loop();
+</script>
+
+</body>
+</html>
