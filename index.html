@@ -22,33 +22,35 @@
 
         .hero {
             text-align: center;
-            padding: 70px 20px 50px;
+            padding: 80px 20px 60px;
             background: linear-gradient(135deg, #0f172a, #172554);
+            border-bottom: 1px solid #1e293b;
         }
 
         .hero h1 {
-            font-size: 42px;
-            margin-bottom: 18px;
+            font-size: 44px;
+            margin-bottom: 20px;
+            letter-spacing: -0.5px;
         }
 
         .hero p {
-            max-width: 750px;
+            max-width: 800px;
             margin: auto;
             color: #cbd5e1;
             font-size: 17px;
-            line-height: 1.7;
+            line-height: 1.8;
         }
 
         .container {
-            max-width: 1100px;
+            max-width: 1150px;
             margin: auto;
-            padding: 50px 25px;
+            padding: 55px 25px;
         }
 
         .section-title {
             text-align: center;
-            font-size: 28px;
-            margin-bottom: 35px;
+            font-size: 29px;
+            margin-bottom: 40px;
         }
 
         .simulations {
@@ -62,7 +64,9 @@
             border: 1px solid #334155;
             border-radius: 16px;
             padding: 30px;
-            transition: 0.3s;
+            display: flex;
+            flex-direction: column;
+            transition: 0.3s ease;
         }
 
         .card:hover {
@@ -71,31 +75,41 @@
             box-shadow: 0 15px 35px rgba(0, 0, 0, 0.3);
         }
 
-        .icon {
-            font-size: 35px;
-            margin-bottom: 18px;
+        .number {
+            width: 42px;
+            height: 42px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: #2563eb;
+            border-radius: 10px;
+            font-size: 18px;
+            font-weight: bold;
+            margin-bottom: 20px;
         }
 
         .card h3 {
             font-size: 21px;
-            margin-bottom: 12px;
+            margin-bottom: 13px;
         }
 
         .card p {
             color: #94a3b8;
-            line-height: 1.6;
+            line-height: 1.65;
             margin-bottom: 25px;
+            flex-grow: 1;
         }
 
         .button {
             display: inline-block;
+            width: fit-content;
             padding: 11px 20px;
             background: #2563eb;
-            color: white;
+            color: #ffffff;
             text-decoration: none;
             border-radius: 8px;
             font-weight: bold;
-            transition: 0.2s;
+            transition: 0.2s ease;
         }
 
         .button:hover {
@@ -108,15 +122,29 @@
             border-top: 1px solid #1e293b;
             color: #64748b;
             margin-top: 20px;
+            font-size: 14px;
         }
 
         @media (max-width: 700px) {
+
+            .hero {
+                padding: 60px 20px 45px;
+            }
+
             .hero h1 {
                 font-size: 30px;
             }
 
+            .hero p {
+                font-size: 15px;
+            }
+
             .simulations {
                 grid-template-columns: 1fr;
+            }
+
+            .container {
+                padding: 40px 20px;
             }
         }
     </style>
@@ -125,13 +153,15 @@
 <body>
 
     <section class="hero">
+
         <h1>Multimodal ML for Wireless Communications</h1>
 
         <p>
-            Interactive simulations demonstrating machine learning and
-            multimodal approaches for wireless communication systems.
-            Explore each simulation below.
+            Interactive simulations exploring multimodal machine learning,
+            wireless communication scenarios, feature fusion, and deep
+            learning based prediction techniques.
         </p>
+
     </section>
 
 
@@ -141,67 +171,110 @@
 
         <div class="simulations">
 
-            <div class="card">
-                <div class="icon">🧠</div>
-
-                <h3>Multi-Modal Feature Fusion</h3>
-
-                <p>
-                    Explore multimodal feature fusion techniques for
-                    wireless communication and machine learning applications.
-                </p>
-
-                <a class="button" href="Multi_Modal_Feature_Fusion.html">
-                    Open Simulation →
-                </a>
-            </div>
-
+            <!-- 1. LOS / NLOS -->
 
             <div class="card">
-                <div class="icon">📡</div>
 
-                <h3>C2V Simulation</h3>
-
-                <p>
-                    Interactive simulation for C2V-based wireless
-                    communication analysis and prediction.
-                </p>
-
-                <a class="button" href="c2v.html">
-                    Open Simulation →
-                </a>
-            </div>
-
-
-            <div class="card">
-                <div class="icon">📶</div>
+                <div class="number">01</div>
 
                 <h3>LOS / NLOS Simulation</h3>
 
                 <p>
                     Visualize and analyze Line-of-Sight and
-                    Non-Line-of-Sight wireless communication scenarios.
+                    Non-Line-of-Sight wireless communication scenarios
+                    and their impact on wireless signal propagation.
                 </p>
 
                 <a class="button" href="los_nlos.html">
                     Open Simulation →
                 </a>
+
             </div>
 
 
+            <!-- 2. V2C -->
+
             <div class="card">
-                <div class="icon">🚗</div>
+
+                <div class="number">02</div>
 
                 <h3>V2C Simulation</h3>
 
                 <p>
-                    Explore vehicle-to-cloud communication concepts
-                    through an interactive simulation.
+                    Explore Vehicle-to-Cloud communication concepts
+                    and their application in intelligent wireless
+                    communication systems.
                 </p>
 
                 <a class="button" href="v2c.html">
                     Open Simulation →
                 </a>
+
+            </div>
+
+
+            <!-- 3. C2V -->
+
+            <div class="card">
+
+                <div class="number">03</div>
+
+                <h3>C2V Simulation</h3>
+
+                <p>
+                    Explore Cloud-to-Vehicle communication concepts
+                    and their relationship with intelligent wireless
+                    communication and prediction systems.
+                </p>
+
+                <a class="button" href="c2v.html">
+                    Open Simulation →
+                </a>
+
+            </div>
+
+
+            <!-- 4. Multi-Modal Feature Fusion -->
+
+            <div class="card">
+
+                <div class="number">04</div>
+
+                <h3>Multi-Modal Feature Fusion</h3>
+
+                <p>
+                    Explore how information from multiple modalities
+                    can be combined to create richer feature
+                    representations for wireless communication
+                    applications.
+                </p>
+
+                <a class="button" href="Multi_Modal_Feature_Fusion.html">
+                    Open Simulation →
+                </a>
+
+            </div>
+
+
+            <!-- 5. Beam Prediction -->
+
+            <div class="card">
+
+                <div class="number">05</div>
+
+                <h3>Multimodal Deep Learning Based Beam Prediction</h3>
+
+                <p>
+                    Explore multimodal deep learning techniques for
+                    beam prediction in wireless communication systems
+                    using information from multiple sources.
+                </p>
+
+                <a class="button"
+                   href="multimodal%20deep%20learning%20based%20beam%20prediction.html">
+                    Open Simulation →
+                </a>
+
             </div>
 
         </div>
@@ -210,7 +283,9 @@
 
 
     <footer class="footer">
+
         Multimodal ML for Wireless Communications
+
     </footer>
 
 </body>
