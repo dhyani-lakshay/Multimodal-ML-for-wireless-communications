@@ -30,7 +30,7 @@ An interactive simulation focused on Vehicle-to-Cloud (V2C) communication concep
 
 ### 3. C2V Simulation
 
-An interactive simulation demonstrating Cloud-to-Vehicle (C2V) communication concepts and their relationship with machine learning based wireless communication systems.
+An interactive simulation demonstrating Cloud-to-Vehicle (C2V) communication concepts and their relationship with intelligent wireless communication systems.
 
 [Open C2V Simulation](https://dhyani-lakshay.github.io/Multimodal-ML-for-wireless-communications/c2v.html)
 
@@ -38,7 +38,7 @@ An interactive simulation demonstrating Cloud-to-Vehicle (C2V) communication con
 
 An interactive demonstration of multimodal feature fusion for wireless communication applications.
 
-The simulation illustrates how information from multiple modalities can be combined to improve the representation and processing of wireless communication data.
+The simulation illustrates how information from multiple modalities can be combined to create richer feature representations for wireless communication systems.
 
 [Open Multi-Modal Feature Fusion Simulation](https://dhyani-lakshay.github.io/Multimodal-ML-for-wireless-communications/Multi_Modal_Feature_Fusion.html)
 
@@ -46,15 +46,15 @@ The simulation illustrates how information from multiple modalities can be combi
 
 An interactive simulation demonstrating multimodal deep learning based beam prediction for wireless communication systems.
 
-The simulation explores how multiple sources of information can be utilized with deep learning techniques for predicting suitable communication beams.
+The simulation explores how information from multiple sources can be utilized with deep learning techniques for predicting suitable communication beams.
 
-[Open Beam Prediction Simulation](https://dhyani-lakshay.github.io/Multimodal-ML-for-wireless-communications/multimodal%20deep%20learning%20based%20beam%20prediction.html)
+[Open Beam Prediction Simulation](https://dhyani-lakshay.github.io/Multimodal-ML-for-wireless-communications/beam_prediction.html)
 
 ## Live Project
 
 The complete collection of interactive simulations is available through the GitHub Pages website:
 
-**[View Interactive Simulations](https://dhyani-lakshay.github.io/Multimodal-ML-for-wireless-communications/)**
+[View Interactive Simulations](https://dhyani-lakshay.github.io/Multimodal-ML-for-wireless-communications/)
 
 ## Repository Structure
 
@@ -66,6 +66,6 @@ Multimodal-ML-for-wireless-communications/
 ├── v2c.html
 ├── c2v.html
 ├── Multi_Modal_Feature_Fusion.html
-├── multimodal deep learning based beam prediction.html
+├── beam_prediction.html
 ├── final ppt.pptx
 └── README.md
